@@ -46,6 +46,20 @@ struct SupportingTypeTests {
         #expect(NotificationID.extractContactUUID(from: NotificationID.thread(contact)) == uuid)
         #expect(NotificationID.extractContactUUID(from: NotificationID.general(contact)) == uuid)
         #expect(NotificationID.extractContactUUID(from: NotificationID.birthday(contact)) == uuid)
+        #expect(NotificationID.quarters(contact).allSatisfy { NotificationID.extractContactUUID(from: $0) == uuid })
+    }
+
+    @Test func tappedNotificationOpensItsContactOnce() {
+        let contact = SelectedContact.sampleData
+        let router = NotificationRouter()
+
+        // Older notifications carry a random identifier but a stable thread.
+        router.notificationTapped(identifier: UUID().uuidString, threadIdentifier: NotificationID.thread(contact))
+        #expect(router.takePendingContactID() == contact.id)
+        #expect(router.takePendingContactID() == nil)
+
+        router.notificationTapped(identifier: "legacy", threadIdentifier: "")
+        #expect(router.pendingContactID == nil)
     }
 
     @Test(arguments: ["", "contact.", "contact.not-a-uuid.general", "8C0E1E0B-2F4A-4C38-9A57-3B8F0D1C2E44"])

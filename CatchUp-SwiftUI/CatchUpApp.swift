@@ -8,14 +8,22 @@
 
 import SwiftData
 import SwiftUI
+import UserNotifications
 
 @main
 struct CatchUpApp: App {
     let modelContainer: ModelContainer
 
     @State private var launchCoordinator = LaunchCoordinator()
+    @State private var notificationRouter: NotificationRouter
 
     init() {
+        // Set before launch finishes, so the tap that launched the app is delivered.
+        // The center holds its delegate weakly; the state keeps the router alive.
+        let notificationRouter = NotificationRouter()
+        UNUserNotificationCenter.current().delegate = notificationRouter
+        _notificationRouter = State(initialValue: notificationRouter)
+
         // use the SQLite file created by Core Data originally, instead of SwiftData's default.store file
         let url = URL.applicationSupportDirectory.appending(path: "CatchUp-SwiftUI.sqlite")
         do {
@@ -31,6 +39,7 @@ struct CatchUpApp: App {
         WindowGroup {
             RootView()
                 .environment(launchCoordinator)
+                .environment(notificationRouter)
                 .tint(.orange)
         }
         .modelContainer(modelContainer)

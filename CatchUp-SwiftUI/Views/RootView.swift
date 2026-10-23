@@ -6,6 +6,7 @@
 //  Copyright © 2026 Token Solutions. All rights reserved.
 //
 
+import SwiftData
 import SwiftUI
 
 /// The root of each window: a sidebar of contacts beside the selected contact's details.
@@ -14,6 +15,9 @@ import SwiftUI
 /// collapsing and expanding — for example when iPhone Duo folds or unfolds, or an
 /// iPad window resizes. Each window owns its own selection.
 struct RootView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(NotificationRouter.self) private var notificationRouter
+
     @State private var selectedContact: SelectedContact?
 
     var body: some View {
@@ -28,6 +32,21 @@ struct RootView: View {
                 NoContactSelectedScreen()
             }
         }
+        // Initial, for the tap that launched the app.
+        .onChange(of: notificationRouter.pendingContactID, initial: true) {
+            openTappedContact()
+        }
+    }
+
+    /// Shows the contact whose notification was tapped, if it still exists.
+    private func openTappedContact() {
+        guard let contactID = notificationRouter.takePendingContactID() else { return }
+
+        var descriptor = FetchDescriptor<SelectedContact>(predicate: #Predicate { $0.id == contactID })
+        descriptor.fetchLimit = 1
+        if let contact = try? modelContext.fetch(descriptor).first {
+            selectedContact = contact
+        }
     }
 }
 
@@ -35,4 +54,5 @@ struct RootView: View {
     RootView()
         .modelContainer(PreviewSampleData.container)
         .environment(LaunchCoordinator())
+        .environment(NotificationRouter())
 }
