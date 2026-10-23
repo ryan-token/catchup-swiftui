@@ -6,22 +6,8 @@
 //  Copyright © 2020 Token Solutions. All rights reserved.
 //
 
-import Foundation
+import OSLog
 import StoreKit
-
-enum IAPServiceAlertType {
-    case disabled
-    case restored
-    case purchased
-
-    var message: String {
-        switch self {
-        case .disabled: "It looks like in-app purchases are disabled for your device."
-        case .restored: "You've successfully restored your purchase!"
-        case .purchased: "Your tip was received. Thank you!"
-        }
-    }
-}
 
 @Observable
 final class IAPService {
@@ -34,7 +20,7 @@ final class IAPService {
     private static let tipProductIDs: [String] = [
         graciousTipProductID,
         generousTipProductID,
-        gratuitousTipProductID,
+        gratuitousTipProductID
     ]
 
     private(set) var products: [Product] = []
@@ -73,7 +59,7 @@ final class IAPService {
             let fetched = try await Product.products(for: Self.tipProductIDs)
             products = fetched.sorted { $0.price < $1.price }
         } catch {
-            print("Failed to load IAPs: \(error)")
+            Logger.store.error("Failed to load IAPs: \(error)")
         }
     }
 
@@ -99,7 +85,8 @@ final class IAPService {
                 break
             }
         } catch {
-            print("Purchase failed for \(product.id): \(error)")
+            Logger.store.error("Purchase failed for \(product.id): \(error)")
+            purchaseStatus = .failed
         }
     }
 
@@ -108,7 +95,8 @@ final class IAPService {
             try await AppStore.sync()
             purchaseStatus = .restored
         } catch {
-            print("Failed to restore purchases: \(error)")
+            Logger.store.error("Failed to restore purchases: \(error)")
+            purchaseStatus = .failed
         }
     }
 

@@ -6,31 +6,22 @@
 //  Copyright © 2020 Token Solutions. All rights reserved.
 //
 
-import SwiftData
-import SwiftUI
+import OSLog
 import UserNotifications
 
-/// Serializes notification reset operations. Each call's work waits for any
-/// previously enqueued work to finish before running, so concurrent resets
-/// can't interleave their purge+reschedule phases on the shared notification queue.
-actor NotificationResetGate {
-    static let shared = NotificationResetGate()
-    private var tail: Task<Void, Never>?
-
-    func run(_ operation: sending @escaping @MainActor () async -> Void) async {
-        let previous = tail
-        let next = Task { @MainActor in
-            await previous?.value
-            await operation()
-        }
-        tail = next
-        await next.value
+/// Schedules each contact's general, birthday, and anniversary notifications.
+///
+/// Date calculations live in `NotificationHelper+Dates.swift`, and purging and
+/// reconciliation live in `NotificationHelper+Maintenance.swift`.
+enum NotificationHelper {
+    private enum Category {
+        static let general = "catchup.general"
+        static let birthday = "catchup.birthday"
+        static let anniversary = "catchup.anniversary"
     }
-}
 
-struct NotificationHelper {
     static func createNewNotification(for contact: SelectedContact) async {
-        if contact.preferenceIsNever() && !contact.hasBirthday() && !contact.hasAnniversary() {
+        if contact.notificationOption == .never && !contact.hasBirthday && !contact.hasAnniversary {
             contact.next_notification_date_time = ""
             return
         }
@@ -40,368 +31,145 @@ struct NotificationHelper {
         let isAuthorized = await checkNotificationAuthorizationStatusAndAddRequest()
         guard isAuthorized else { return }
 
-        if preferenceIsNotSetToNever(for: contact) {
+        if contact.notificationOption != .never {
             await addGeneralNotification(for: contact)
         }
-        if contact.hasBirthday() {
+        if contact.hasBirthday {
             await addBirthdayNotification(for: contact)
         }
-        if contact.hasAnniversary() {
+        if contact.hasAnniversary {
             await addAnniversaryNotification(for: contact)
         }
     }
 
-    static func preferenceIsNotSetToNever(for contact: SelectedContact) -> Bool {
-        return contact.notification_preference != 0 ? true : false
+    static func addGeneralNotification(for contact: SelectedContact) async {
+        let content = UNMutableNotificationContent()
+        content.title = "👋 CatchUp with \(contact.name)"
+        content.body = NotificationMessages.randomGeneralBody()
+
+        await scheduleNotification(
+            identifier: NotificationID.general(contact),
+            category: Category.general,
+            content: content,
+            trigger: generalTrigger(for: contact),
+            for: contact
+        )
     }
 
-    static func addGeneralNotification(for contact: SelectedContact) async {
-        let notificationContent = UNMutableNotificationContent()
-        notificationContent.title = "👋 CatchUp with \(contact.name)"
-        notificationContent.body = generateRandomNotificationBody()
-        notificationContent.sound = UNNotificationSound.default
-        notificationContent.badge = 1
+    /// The general reminder's trigger.
+    ///
+    /// Quarterly reminders fire once, on the next 90-day mark counted from when quarterly
+    /// was chosen. A repeating interval would restart its count on every reschedule, so it
+    /// would never fire for someone who opens the app more often than every 90 days.
+    /// Each reschedule sets up the next quarter instead.
+    static func generalTrigger(for contact: SelectedContact, now: Date = .now) -> UNNotificationTrigger {
+        guard contact.notificationOption == .quarterly else {
+            let components = getNotificationDateComponents(for: contact)
+            return UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
+        }
 
-        let identifier = NotificationID.general(contact)
-        
-        if contact.preferenceIsQuarterly() {
-            // Quarterly uses time interval trigger
-            let oneDay: Double = 86400
-            let timeInterval = oneDay * 90
-            await scheduleNotification(
-                for: contact,
-                isBirthdayOrAnniversary: false,
-                dateComponents: nil,
-                timeInterval: timeInterval,
-                identifier: identifier,
-                content: notificationContent
-            )
-        } else {
-            // All other preferences use calendar trigger
-            let dateComponents = getNotificationDateComponents(for: contact)
-            await scheduleNotification(
-                for: contact,
-                isBirthdayOrAnniversary: false,
-                dateComponents: dateComponents,
-                timeInterval: nil,
-                identifier: identifier,
-                content: notificationContent
-            )
+        let fireDate = nextQuarterlyFireDate(from: contact.notification_preference_quarterly_set_time, now: now)
+        return UNTimeIntervalNotificationTrigger(timeInterval: fireDate.timeIntervalSince(now), repeats: false)
+    }
+
+    /// Schedules the next quarter for quarterly contacts whose last reminder has fired
+    /// while the app stayed in memory, so it doesn't wait for a cold launch.
+    static func scheduleNextQuarterlyReminders(for contacts: [SelectedContact]) async {
+        let quarterlyContacts = contacts.filter { $0.notificationOption == .quarterly }
+        guard !quarterlyContacts.isEmpty else { return }
+
+        // Never prompt for permission when the app comes to the foreground.
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        guard settings.authorizationStatus == .authorized else { return }
+
+        // Inside the gate, so this can't land between a reset's purge and reschedule.
+        await NotificationResetGate.shared.run {
+            for contact in quarterlyContacts where contact.modelContext != nil {
+                await addGeneralNotification(for: contact)
+            }
         }
     }
 
     static func addBirthdayNotification(for contact: SelectedContact) async {
-        let birthdayNotificationContent = UNMutableNotificationContent()
-        birthdayNotificationContent.title = "🥳 Today is \(contact.name)'s birthday!"
-        birthdayNotificationContent.body = "Be sure to CatchUp and wish them a great one!"
-        birthdayNotificationContent.sound = UNNotificationSound.default
-        birthdayNotificationContent.badge = 1
+        guard let dateComponents = getBirthdayDateComponents(for: contact) else {
+            Logger.notifications.error("Skipping a birthday notification with an unreadable date")
+            return
+        }
 
-        let birthdayIdentifier = NotificationID.birthday(contact)
-        let birthdayDateComponents = getBirthdayDateComponents(for: contact)
+        let content = UNMutableNotificationContent()
+        content.title = "🥳 Today is \(contact.name)'s birthday!"
+        content.body = "Be sure to CatchUp and wish them a great one!"
 
         await scheduleNotification(
-            for: contact,
-            isBirthdayOrAnniversary: true,
-            dateComponents: birthdayDateComponents,
-            timeInterval: nil,
-            identifier: birthdayIdentifier,
-            content: birthdayNotificationContent
+            identifier: NotificationID.birthday(contact),
+            category: Category.birthday,
+            content: content,
+            trigger: UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true),
+            for: contact
         )
     }
 
     static func addAnniversaryNotification(for contact: SelectedContact) async {
-        let anniversaryNotificationContent = UNMutableNotificationContent()
-        anniversaryNotificationContent.title = "😍 Tomorrow is \(contact.name)'s anniversary!"
-        anniversaryNotificationContent.body = "Be sure to CatchUp and wish them the best."
-        anniversaryNotificationContent.sound = UNNotificationSound.default
-        anniversaryNotificationContent.badge = 1
+        guard let dateComponents = getAnniversaryDateComponents(for: contact) else {
+            Logger.notifications.error("Skipping an anniversary notification with an unreadable date")
+            return
+        }
 
-        let anniversaryIdentifier = NotificationID.anniversary(contact)
-        let anniversaryDateComponents = getAnniversaryDateComponents(for: contact)
+        let content = UNMutableNotificationContent()
+        content.title = "😍 Tomorrow is \(contact.name)'s anniversary!"
+        content.body = "Be sure to CatchUp and wish them the best."
 
         await scheduleNotification(
-            for: contact,
-            isBirthdayOrAnniversary: true,
-            dateComponents: anniversaryDateComponents,
-            timeInterval: nil,
-            identifier: anniversaryIdentifier,
-            content: anniversaryNotificationContent
+            identifier: NotificationID.anniversary(contact),
+            category: Category.anniversary,
+            content: content,
+            trigger: UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true),
+            for: contact
         )
     }
 
     static func checkNotificationAuthorizationStatusAndAddRequest() async -> Bool {
-        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
 
         if settings.authorizationStatus == .authorized {
             return true
-        } else {
-            do {
-                let granted = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound])
-                if granted {
-                    print("Notification authorization granted")
-                } else {
-                    print("User denied notification authorization")
-                }
-                return granted
-            } catch {
-                print("Error requesting notification authorization: \(error)")
-                return false
-            }
+        }
+
+        do {
+            let granted = try await center.requestAuthorization(options: [.alert, .badge, .sound])
+            Logger.notifications.info("Notification authorization granted: \(granted)")
+            return granted
+        } catch {
+            Logger.notifications.error("Error requesting notification authorization: \(error)")
+            return false
         }
     }
 
-    static func getNextNotificationDateFor(contact: SelectedContact) -> String {
-        // Early return for Never preference, only checking birthday/anniversary
-        if contact.preferenceIsNever() {
-            var soonest = ""
-            if contact.hasBirthday() {
-                let birthday = calculateDateStringFromComponents(getBirthdayDateComponents(for: contact))
-                soonest = birthday
-            }
-            if contact.hasAnniversary() {
-                let anniversary = calculateDateStringFromComponents(getAnniversaryDateComponents(for: contact))
-                if soonest.isEmpty || anniversary < soonest {
-                    soonest = anniversary
-                }
-            }
-            return soonest
-        }
-
-        // Get next notification date for the general notification
-        var components = DateComponents()
-
-        if contact.preferenceIsDaily() {
-            components.hour = contact.notification_preference_hour
-            components.minute = contact.notification_preference_minute
-        } else if contact.preferenceIsWeekly() || contact.preferenceIsMonthly() {
-            components.hour = contact.notification_preference_hour
-            components.minute = contact.notification_preference_minute
-            components.weekday = contact.notification_preference_weekday
-            if contact.notification_preference_week_of_month != 0 {
-                components.weekOfMonth = contact.notification_preference_week_of_month
-            }
-        } else if contact.preferenceIsQuarterly() {
-            print("Quarterly is handled separately by UNTimeIntervalNotificationTrigger. Fallthrough.")
-        } else if contact.preferenceIsAnnually() || contact.preferenceIsCustom() {
-            components.minute = contact.notification_preference_minute
-            components.hour = contact.notification_preference_hour
-            components.day = contact.notification_preference_custom_day
-            components.month = contact.notification_preference_custom_month
-            if contact.preferenceIsAnnually() {
-                components.year = nil
-            } else if contact.preferenceIsCustom() {
-                components.year = contact.notification_preference_custom_year
-            }
-        }
-
-        var soonestUpcomingNotificationDateString = ""
-        if contact.preferenceIsQuarterly() {
-            soonestUpcomingNotificationDateString = getNextNotificationDateForQuarterlyPreference(contact: contact)
-        } else {
-            soonestUpcomingNotificationDateString = calculateDateStringFromComponents(components)
-        }
-
-        if contact.hasBirthday() && !contact.preferenceIsNever() {
-            let birthdayDateString = calculateDateStringFromComponents(getBirthdayDateComponents(for: contact))
-            if birthdayDateString < soonestUpcomingNotificationDateString {
-                soonestUpcomingNotificationDateString = birthdayDateString
-            }
-        }
-
-        if contact.hasAnniversary() && !contact.preferenceIsNever() {
-            let anniversaryDateString = calculateDateStringFromComponents(getAnniversaryDateComponents(for: contact))
-            if anniversaryDateString < soonestUpcomingNotificationDateString {
-                soonestUpcomingNotificationDateString = anniversaryDateString
-            }
-        }
-
-        return soonestUpcomingNotificationDateString
-    }
-
-    static func getNotificationDateComponents(for contact: SelectedContact) -> DateComponents {
-        var dateComponents = DateComponents()
-
-        if contact.preferenceIsDaily() {
-            dateComponents.hour = contact.notification_preference_hour
-            dateComponents.minute = contact.notification_preference_minute
-        } else if contact.preferenceIsWeekly() {
-            dateComponents.hour = contact.notification_preference_hour
-            dateComponents.minute = contact.notification_preference_minute
-            dateComponents.weekday = contact.notification_preference_weekday
-        } else if contact.preferenceIsMonthly() {
-            dateComponents.hour = contact.notification_preference_hour
-            dateComponents.minute = contact.notification_preference_minute
-            dateComponents.weekday = contact.notification_preference_weekday
-            dateComponents.weekOfMonth = contact.notification_preference_week_of_month
-        } else if contact.preferenceIsAnnually() || contact.preferenceIsCustom() {
-            if contact.preferenceIsAnnually() {
-                dateComponents.year = nil
-            } else if contact.preferenceIsCustom() {
-                dateComponents.year = contact.notification_preference_custom_year
-            }
-            dateComponents.month = contact.notification_preference_custom_month
-            dateComponents.day = contact.notification_preference_custom_day
-            dateComponents.hour = contact.notification_preference_hour
-            dateComponents.minute = contact.notification_preference_minute
-        }
-
-        print("Notification date components for \(contact.name): \(dateComponents)")
-
-        return dateComponents
-    }
-
-    static func getNextNotificationDateForQuarterlyPreference(contact: SelectedContact) -> String {
-        // Compute the next quarterly fire date without side effects
-        let anchor = contact.notification_preference_quarterly_set_time
-        let next = nextQuarterlyFireDate(from: anchor)
-        return calculateDateStringFromDate(next)
-    }
-
-    nonisolated static func nextQuarterlyFireDate(from anchor: Date, now: Date = Date()) -> Date {
-        let ninetyDays = Constants.ninetyDaysInSeconds
-        let elapsed = now.timeIntervalSince(anchor)
-        
-        // If anchor is in the future, return it
-        guard elapsed > 0 else { return anchor }
-        
-        // Calculate how many quarters have passed and add one more to get the next future date
-        let quartersElapsed = ceil(elapsed / ninetyDays)
-        return anchor.addingTimeInterval(quartersElapsed * ninetyDays)
-    }
-
-    static func getBirthdayDateComponents(for contact: SelectedContact) -> DateComponents {
-        var birthdayDateComponents = DateComponents()
-        
-        let month = (contact.birthday).prefix(2)
-        let day = (contact.birthday).suffix(2)
-        
-        birthdayDateComponents.month = Int(month)
-        birthdayDateComponents.day = Int(day)
-        birthdayDateComponents.hour = 7
-        birthdayDateComponents.minute = 15
-        
-        return birthdayDateComponents
-    }
-
-    static func getAnniversaryDateComponents(for contact: SelectedContact) -> DateComponents {
-        var anniversaryDateComponents = DateComponents()
-        let formatter = DateFormatter()
-        
-        formatter.dateFormat = "MM-dd"
-        let anniversaryDate = formatter.date(from: contact.anniversary)!
-        let previousDayDate = Calendar.current.date(byAdding: .day, value: -1, to: anniversaryDate)
-        let previousDay = formatter.string(from: previousDayDate!)
-        
-        let month = (previousDay).prefix(2)
-        let day = (previousDay).suffix(2)
-        
-        anniversaryDateComponents.month = Int(month)
-        anniversaryDateComponents.day = Int(day)
-        anniversaryDateComponents.hour = 7
-        anniversaryDateComponents.minute = 30
-        
-        return anniversaryDateComponents
-    }
-
-    static func scheduleNotification(
-        for contact: SelectedContact,
-        isBirthdayOrAnniversary: Bool,
-        dateComponents: DateComponents?,
-        timeInterval: TimeInterval?,
+    private static func scheduleNotification(
         identifier: String,
-        content: UNMutableNotificationContent
+        category: String,
+        content: UNMutableNotificationContent,
+        trigger: UNNotificationTrigger,
+        for contact: SelectedContact
     ) async {
-        // Set thread and category identifiers for grouping and filtering
+        content.sound = .default
+        content.badge = 1
+        // Thread and category identifiers group and filter notifications per contact.
         content.threadIdentifier = NotificationID.thread(contact)
-
-        if content.title.hasPrefix("👋") {
-            content.categoryIdentifier = "catchup.general"
-        } else if content.title.hasPrefix("🥳") {
-            content.categoryIdentifier = "catchup.birthday"
-        } else {
-            content.categoryIdentifier = "catchup.anniversary"
-        }
-
-        // Create the appropriate trigger
-        let trigger: UNNotificationTrigger
-        if let timeInterval {
-            trigger = UNTimeIntervalNotificationTrigger(timeInterval: timeInterval, repeats: true)
-        } else if let dateComponents {
-            trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
-        } else {
-            assertionFailure("Missing trigger for notification")
-            return
-        }
+        content.categoryIdentifier = category
 
         let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
         do {
             try await UNUserNotificationCenter.current().add(request)
         } catch {
-            print("Failed to schedule notification \(identifier): \(error)")
+            Logger.notifications.error("Failed to schedule notification \(identifier): \(error)")
         }
-    }
-
-    nonisolated static func generateRandomNotificationBody() -> String {
-        let randomInt = Int.random(in: 0..<20)
-        
-        switch randomInt {
-            case 0:
-                return "Now you can be best buddies again"
-            case 1:
-                return "A little birdy told me they really miss you"
-            case 2:
-                return "It's time to check back in"
-            case 3:
-                return "You're a good friend. Good for you. Tell this person to get CatchUp too so it's not always you who's reaching out"
-            case 4:
-                return "Today is the perfect day to get back in touch"
-            case 5:
-                return "Remember to keep in touch with the people that matter most"
-            case 6:
-                return "You know what they say: 'A CatchUp a day keeps the needy friends at bay'"
-            case 7:
-                return "Have you written a physical letter in a while? Maybe give that a try this time. People like that"
-            case 8:
-                return "Here's that reminder you set to check in with someone important. Maybe you'll make their day"
-            case 9:
-                return "Once a good person, always a good person (you are a good person, and probably so is the person you want to be reminded to CatchUp with)"
-            case 10:
-                return "Here's another reminder to get back in touch with ⬆️"
-            case 11:
-                return "Time to get back in contact with one of your favorite people"
-            case 12:
-                return "So nice of you to want to stay in touch with the people you care about"
-            case 13:
-                return "You know they'll really appreciate it"
-            case 14:
-                return "I'm not guilting you into this or anything, but this person will probably be sad if you don't say hello."
-            case 15:
-                return "You have this app, so you must be cool and nice. Now send a thoughtful message to this also cool and nice person"
-            case 16:
-                return "Once upon a time, there was a nice person. The end. (Spoiler: you're the nice person - keep being nice and reach out to your friend)"
-            case 17:
-                return "Another timely reminder to catch up. Just the way you wanted it"
-            case 18:
-                return "Now is the time! Seize the moment!"
-            case 19:
-                return "Good job keeping your friends close. Now keep your enemies closer 😉"
-            default:
-                return "Keep in touch"
-        }
-    }
-
-    static func updateNotificationPreference(for contact: SelectedContact, selection: Int) {
-        contact.notification_preference = selection
     }
 
     static func updateNotificationTime(for contact: SelectedContact, hour: Int, minute: Int) {
         contact.notification_preference_hour = hour
         contact.notification_preference_minute = minute
-    }
-
-    static func updateNotificationPreferenceWeekday(for contact: SelectedContact, weekday: Int) {
-        contact.notification_preference_weekday = weekday
     }
 
     static func updateNotificationCustomDate(for contact: SelectedContact, month: Int, day: Int, year: Int) {
@@ -410,190 +178,12 @@ struct NotificationHelper {
         contact.notification_preference_custom_year = year
     }
 
-    /// Removes every pending and delivered notification belonging to a contact,
-    /// using the stable identifier scheme. Call this before deleting a contact from
-    /// SwiftData; deletion-via-await ensures the cancellation lands in iOS's queue
-    /// before the source-of-truth row disappears.
-    static func removeExistingNotifications(for contact: SelectedContact) async {
-        await purgePendingForContact(contact)
-    }
-
+    /// Recalculates the stored next date, writing only when it changed so unchanged
+    /// contacts don't re-render or sync.
     static func updateNextNotificationDateTimeFor(contact: SelectedContact) {
-        let nextNotificationDateTime = getNextNotificationDateFor(contact: contact)
-        contact.next_notification_date_time = nextNotificationDateTime
-    }
-
-    nonisolated static func getDateComponentsFromDate(_ date: Date) -> DateComponents {
-        let calendar = Calendar.current
-        let dateComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
-        return dateComponents
-    }
-
-    nonisolated static func calculateDateStringFromDate(_ date: Date) -> String {
-        let dateComponents = getDateComponentsFromDate(date)
-        return calculateDateStringFromComponents(dateComponents)
-    }
-
-    nonisolated static func calculateDateStringFromComponents(_ dateComponents: DateComponents) -> String {
-        let calendar = Calendar.current
-        let currentDate = Date()
-
-        // Calculate the date based on the provided components and current date
-        if let calculatedDate = calendar.nextDate(after: currentDate, matching: dateComponents, matchingPolicy: .nextTime) {
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss" // Define the desired date format
-
-            // Convert the calculated date to a human-readable date string
-            let formattedDate = dateFormatter.string(from: calculatedDate)
-            // print("returning \(formattedDate)")
-            return formattedDate
-        }
-
-        return "Unknown"
-    }
-
-    static func setYearPreference(for contact: SelectedContact) {
-        var contactDateComponents = NotificationHelper.getNotificationDateComponents(for: contact)
-        contactDateComponents.year = Calendar.current.component(.year, from: Date())
-        if let nextNotificationDate = Calendar.current.date(from: contactDateComponents) {
-            if nextNotificationDate < Date() {
-                contact.notification_preference_custom_year = Calendar.current.component(.year, from: Date())+1
-            } else {
-                contact.notification_preference_custom_year = Calendar.current.component(.year, from: Date())
-            }
-            print("set \(contact.name)'s year preference to \(contact.notification_preference_custom_year)")
-        }
-    }
-    
-    /// Purges all pending and delivered notifications for a single contact.
-    /// Matches by stable identifier, by thread identifier, and (defensively) by
-    /// legacy UUID fields and by title — so it cleans up notifications scheduled
-    /// by any previous version of the app.
-    static func purgePendingForContact(_ contact: SelectedContact) async {
-        let contactName = contact.name
-        let threadId = NotificationID.thread(contact)
-        let stableIds: Set<String> = [
-            NotificationID.general(contact),
-            NotificationID.birthday(contact),
-            NotificationID.anniversary(contact)
-        ]
-        let legacyIds: Set<String> = [
-            contact.notification_identifier.uuidString,
-            contact.birthday_notification_id.uuidString,
-            contact.anniversary_notification_id.uuidString
-        ]
-        let legacyTitles: Set<String> = [
-            "👋 CatchUp with \(contactName)",
-            "🥳 Today is \(contactName)'s birthday!",
-            "😍 Tomorrow is \(contactName)'s anniversary!"
-        ]
-
-        let center = UNUserNotificationCenter.current()
-        let pending = await center.pendingNotificationRequests()
-        let delivered = await center.deliveredNotifications()
-
-        let matchesContact: (UNNotificationRequest) -> Bool = { request in
-            if stableIds.contains(request.identifier) { return true }
-            if legacyIds.contains(request.identifier) { return true }
-            if request.content.threadIdentifier == threadId { return true }
-            if legacyTitles.contains(request.content.title) { return true }
-            return false
-        }
-
-        let pendingTargets = pending.filter(matchesContact).map(\.identifier)
-        let deliveredTargets = delivered.map(\.request).filter(matchesContact).map(\.identifier)
-
-        if !pendingTargets.isEmpty {
-            center.removePendingNotificationRequests(withIdentifiers: pendingTargets)
-        }
-        if !deliveredTargets.isEmpty {
-            center.removeDeliveredNotifications(withIdentifiers: deliveredTargets)
-        }
-    }
-
-    /// Reconciles iOS's notification queue against the current SwiftData contact set.
-    /// Cancels every pending or delivered notification whose embedded contact UUID
-    /// doesn't match an existing contact, as well as any notification whose
-    /// identifier doesn't follow the stable scheme at all (legacy entries).
-    ///
-    /// Run on every cold launch as defense-in-depth: if a removal ever fails to
-    /// land — for any reason — the next launch reconciles it. The operation is
-    /// idempotent and surgical (it does not touch valid notifications).
-    static func cleanupOrphanedNotifications(for selectedContacts: [SelectedContact]) async {
-        let validContactIds = Set(selectedContacts.map { $0.id.uuidString })
-        let center = UNUserNotificationCenter.current()
-        let pending = await center.pendingNotificationRequests()
-        let delivered = await center.deliveredNotifications()
-
-        let isOrphan: (UNNotificationRequest) -> Bool = { request in
-            let embedded = NotificationID.extractContactUUID(from: request.identifier)
-                ?? NotificationID.extractContactUUID(from: request.content.threadIdentifier)
-            if let embedded {
-                return !validContactIds.contains(embedded)
-            }
-            // No recognizable stable-scheme contact UUID — treat as legacy.
-            return true
-        }
-
-        let pendingOrphans = pending.filter(isOrphan).map(\.identifier)
-        let deliveredOrphans = delivered.map(\.request).filter(isOrphan).map(\.identifier)
-
-        if !pendingOrphans.isEmpty {
-            center.removePendingNotificationRequests(withIdentifiers: pendingOrphans)
-        }
-        if !deliveredOrphans.isEmpty {
-            center.removeDeliveredNotifications(withIdentifiers: deliveredOrphans)
-        }
-    }
-
-    /// One-time "nuclear" reset: cancels every pending and delivered notification
-    /// belonging to this app, then re-schedules from the current SwiftData contact
-    /// set as the single source of truth. Used once on next launch (gated by
-    /// `@AppStorage`) to recover from notifications stranded by past builds whose
-    /// removal code targeted the wrong identifiers.
-    static func performOneTimeNuclearReset(for selectedContacts: [SelectedContact]) async {
-        let center = UNUserNotificationCenter.current()
-        center.removeAllPendingNotificationRequests()
-        center.removeAllDeliveredNotifications()
-
-        // Give the system a moment to settle before re-scheduling.
-        try? await Task.sleep(for: .milliseconds(200))
-
-        // `createNewNotification` short-circuits for contacts with nothing to
-        // schedule, so we can iterate the full set without an extra filter.
-        for contact in selectedContacts {
-            await createNewNotification(for: contact)
-        }
-    }
-
-    static func resetNotifications(for selectedContacts: [SelectedContact], delayTime: Double) async {
-        // Serialize concurrent resets — both the purge and the reschedule run inside
-        // the gate, so two interleaved callers can't fight over the notification queue.
-        await NotificationResetGate.shared.run {
-            if delayTime > 0 {
-                try? await Task.sleep(for: .seconds(delayTime))
-            }
-
-            let center = UNUserNotificationCenter.current()
-
-            // Phase 1: Purge all existing notifications for each contact.
-            for contact in selectedContacts {
-                await purgePendingForContact(contact)
-            }
-
-            // Phase 2: Re-schedule notifications with stable identifiers.
-            for contact in selectedContacts {
-                if contact.notification_preference != 0 {
-                    await NotificationHelper.createNewNotification(for: contact)
-                } else {
-                    // Ensure no general notification remains if user disabled it.
-                    await center.remove([NotificationID.general(contact)])
-                }
-            }
-
-            for contact in selectedContacts where contact.unread_badge_date_time.isEmpty {
-                contact.unread_badge_date_time = contact.next_notification_date_time
-            }
+        let next = getNextNotificationDateFor(contact: contact)
+        if contact.next_notification_date_time != next {
+            contact.next_notification_date_time = next
         }
     }
 }

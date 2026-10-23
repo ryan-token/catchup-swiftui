@@ -9,14 +9,20 @@
 import SwiftUI
 
 struct NextCatchUpRow: View {
-    let nextCatchUpTime: String
+    let contact: SelectedContact
 
     var body: some View {
-        LabeledContent("Next CatchUp:", value: nextCatchUpTime)
-            .listRowSeparator(.hidden)
+        // Reads only the next notification time, so this row updates when it changes.
+        LabeledContent(
+            "Next CatchUp:",
+            value: ContactHelper.friendlyNextCatchUpTime(for: contact, forQuarterlyPreference: false)
+        )
+        .listRowSeparator(.hidden)
     }
 }
 
 #Preview {
-    NextCatchUpRow(nextCatchUpTime: "December 29 at 7:15 AM")
+    List {
+        NextCatchUpRow(contact: .sampleData)
+    }
 }

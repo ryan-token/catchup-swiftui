@@ -8,20 +8,23 @@
 
 import SwiftUI
 
+/// A full-width, filled label for a screen's prominent call to action.
 struct CalloutButtonView: View {
-    let buttonText: String
-    let buttonColor: Color
+    let title: LocalizedStringKey
+    let color: Color
 
     var body: some View {
-        Text(buttonText)
+        Text(title)
             .bold()
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .padding(.vertical, 6)
+            .padding(.horizontal)
             .foregroundStyle(.white)
-            .background(buttonColor, in: .rect(cornerRadius: 20))
+            .background(color, in: .rect(cornerRadius: 20))
     }
 }
 
 #Preview {
-    CalloutButtonView(buttonText: "Remove Bee", buttonColor: .red)
+    CalloutButtonView(title: "Remove Bee", color: .red)
 }

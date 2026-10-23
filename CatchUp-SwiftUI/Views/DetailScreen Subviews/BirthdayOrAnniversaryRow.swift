@@ -8,18 +8,17 @@
 
 import SwiftUI
 
+/// Celebrates when the next notification is the contact's birthday or the day before their anniversary.
 struct BirthdayOrAnniversaryRow: View {
     let contact: SelectedContact
 
     var body: some View {
-        if !contact.birthday.isEmpty, contact.next_notification_date_time.contains(contact.birthday) {
-            HStack {
-                Spacer()
-                Text("🥳 \(ContactHelper.getFirstName(for: contact))'s birthday!")
-                    .foregroundStyle(.orange)
-                Spacer()
-            }
-            .padding(.top, 2)
+        if contact.hasBirthday, contact.next_notification_date_time.contains(contact.birthday) {
+            Text("🥳 \(ContactHelper.firstName(for: contact))'s birthday!")
+                .foregroundStyle(.orange)
+                .frame(maxWidth: .infinity)
+                .multilineTextAlignment(.center)
+                .padding(.top, 2)
         } else if let anniversaryString = dayBeforeAnniversaryString(),
                   contact.next_notification_date_time == anniversaryString {
             Text("💜 The day before their anniversary!")
@@ -30,13 +29,13 @@ struct BirthdayOrAnniversaryRow: View {
     }
 
     private func dayBeforeAnniversaryString() -> String? {
-        guard contact.hasAnniversary() else { return nil }
-        return NotificationHelper.calculateDateStringFromComponents(
-            NotificationHelper.getAnniversaryDateComponents(for: contact)
-        )
+        NotificationHelper.getAnniversaryDateComponents(for: contact)
+            .map { NotificationHelper.calculateDateStringFromComponents($0) }
     }
 }
 
 #Preview {
-    BirthdayOrAnniversaryRow(contact: .sampleData)
+    List {
+        BirthdayOrAnniversaryRow(contact: .sampleData)
+    }
 }

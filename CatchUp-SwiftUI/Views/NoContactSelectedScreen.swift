@@ -8,21 +8,25 @@
 
 import SwiftUI
 
+/// Fills the detail column until a contact is selected.
 struct NoContactSelectedScreen: View {
     var body: some View {
-        VStack {
-            Image("CatchUp")
-                .resizable()
-                .frame(width: 100, height: 100)
-                .clipShape(.rect(cornerRadius: 20))
-                .shadow(radius: 15)
-                .padding(.bottom)
-                .accessibilityHidden(true)
-
-            Text("Select a contact from the left sidebar to get started.")
-                .bold()
+        ContentUnavailableView {
+            Label {
+                Text("Select a contact from the sidebar to get started.")
+                    .bold()
+            } icon: {
+                Image(.catchUp)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 100, height: 100)
+                    .clipShape(.rect(cornerRadius: 20))
+                    .shadow(radius: 15)
+                    .accessibilityHidden(true)
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Matches the detail screen's grouped list, which SwiftUI has no style for.
+        .background(Color(uiColor: .systemGroupedBackground))
     }
 }
 

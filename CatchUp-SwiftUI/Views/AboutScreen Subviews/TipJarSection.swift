@@ -10,20 +10,28 @@ import StoreKit
 import SwiftUI
 
 struct TipJarSection: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     private let iapService = IAPService.shared
     @State private var tipTrigger = 0
-    @State private var statusMessage: String?
+    @State private var status: IAPServiceAlertType?
 
     var body: some View {
         VStack(spacing: 15) {
             Text("Tip Jar")
                 .font(.headline)
 
-            Text("CatchUp is free with no ads. If you find it useful, please consider supporting development by leaving a tip or review.")
+            Text("""
+                CatchUp is free with no ads. If you find it useful, please consider supporting \
+                development by leaving a tip or review.
+                """)
                 .multilineTextAlignment(.center)
                 .padding(.bottom)
 
-            HStack {
+            // Stack the tips vertically at accessibility text sizes, which leave
+            // no room side by side. AnyLayout keeps the buttons' identity.
+            let layout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout()) : AnyLayout(HStackLayout())
+            layout {
                 TipButton(
                     amount: displayPrice(for: IAPService.graciousTipProductID, fallback: "$0.99"),
                     action: { purchase(productID: IAPService.graciousTipProductID) }
@@ -43,20 +51,12 @@ struct TipJarSection: View {
         .task { await iapService.loadProducts() }
         .onChange(of: iapService.purchaseStatus) { _, newValue in
             guard let newValue else { return }
-            statusMessage = newValue.message
+            status = newValue
             iapService.clearPurchaseStatus()
         }
-        .alert(
-            "Thanks!",
-            isPresented: Binding(
-                get: { statusMessage != nil },
-                set: { if !$0 { statusMessage = nil } }
-            ),
-            presenting: statusMessage
-        ) { _ in
-            Button("OK", role: .cancel) { statusMessage = nil }
-        } message: { message in
-            Text(message)
+        .alert(status?.title ?? "Thanks!", item: $status) { _ in
+        } message: { status in
+            Text(status.message)
         }
     }
 

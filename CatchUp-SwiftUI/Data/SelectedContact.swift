@@ -10,34 +10,46 @@
 import Foundation
 import SwiftData
 
+// The snake_case property names mirror the original Core Data store and the
+// CloudKit record schema derived from it. Renaming them would orphan existing
+// data and break sync with older app versions, so they stay as they are.
+// swiftlint:disable identifier_name
+
 @Model
 class SelectedContact {
     #Index<SelectedContact>([\.name], [\.next_notification_date_time])
 
     var address: String = ""
+    /// The anniversary as a zero-padded `MM-dd` string, or empty when unknown.
     var anniversary: String = ""
     var anniversary_notification_id: UUID = UUID()
+    /// The birthday as a zero-padded `MM-dd` string, or empty when unknown.
     var birthday: String = ""
     var birthday_notification_id: UUID = UUID()
     var email: String = ""
     var id: UUID = UUID()
     var name: String = ""
     var notification_identifier: UUID = UUID()
+    /// The raw value of a `NotificationOption`.
     var notification_preference: Int = 0
     var notification_preference_custom_day: Int = 0
     var notification_preference_custom_month: Int = 0
     var notification_preference_custom_year: Int = 0
     var notification_preference_hour: Int = 0
     var notification_preference_minute: Int = 0
-    var notification_preference_quarterly_set_time: Date = Date()
+    var notification_preference_quarterly_set_time: Date = Date.now
+    /// The Gregorian weekday, where 1 is Sunday.
     var notification_preference_weekday: Int = 1
     var notification_preference_week_of_month: Int = 0
     var phone: String = ""
+    /// A Base64-encoded thumbnail, or empty to use the default photo.
     var picture: String = ""
     var secondary_address: String = ""
     var secondary_email: String = ""
     var secondary_phone: String = ""
+    /// The next time any notification fires, in `StoredDateFormat`.
     var next_notification_date_time: String = ""
+    /// The `StoredDateFormat` time after which the unread indicator shows.
     var unread_badge_date_time: String = ""
 
     init(
@@ -94,72 +106,23 @@ class SelectedContact {
         self.unread_badge_date_time = unread_badge_date_time
     }
 
-    func preferenceIsNever() -> Bool {
-        notification_preference == 0
+    /// The reminder frequency, treating unrecognized stored values as `.never`.
+    var notificationOption: NotificationOption {
+        NotificationOption(rawValue: notification_preference) ?? .never
     }
 
-    func preferenceIsDaily() -> Bool {
-        notification_preference == 1
-    }
+    var hasPhone: Bool { !phone.isEmpty }
+    var hasSecondaryPhone: Bool { !secondary_phone.isEmpty }
+    var hasEmail: Bool { !email.isEmpty }
+    var hasSecondaryEmail: Bool { !secondary_email.isEmpty }
+    var hasAddress: Bool { !address.isEmpty }
+    var hasSecondaryAddress: Bool { !secondary_address.isEmpty }
+    var hasBirthday: Bool { !birthday.isEmpty }
+    var hasAnniversary: Bool { !anniversary.isEmpty }
 
-    func preferenceIsWeekly() -> Bool {
-        notification_preference == 2
-    }
-
-    func preferenceIsMonthly() -> Bool {
-        notification_preference == 3
-    }
-
-    func preferenceIsQuarterly() -> Bool {
-        notification_preference == 4
-    }
-
-    func preferenceIsAnnually() -> Bool {
-        notification_preference == 5
-    }
-
-    func preferenceIsCustom() -> Bool {
-        notification_preference == 6
-    }
-
-    func hasPhone() -> Bool {
-        phone != "" ? true : false
-    }
-
-    func hasSecondaryPhone() -> Bool {
-        secondary_phone != "" ? true : false
-    }
-
-    func hasEmail() -> Bool {
-        email != "" ? true : false
-    }
-
-    func hasSecondaryEmail() -> Bool {
-        secondary_email != "" ? true : false
-    }
-
-    func hasAddress() -> Bool {
-        address != "" ? true : false
-    }
-
-    func hasSecondaryAddress() -> Bool {
-        secondary_address != "" ? true : false
-    }
-
-    func hasBirthday() -> Bool {
-        birthday != "" ? true : false
-    }
-
-    func hasAnniversary() -> Bool {
-        anniversary != "" ? true : false
-    }
-
-    func hasContactInfo() -> Bool {
-        if hasPhone() || hasSecondaryPhone() || hasEmail() || hasSecondaryEmail() || hasAddress() || hasSecondaryAddress() || hasBirthday() || hasAnniversary() {
-            return true
-        } else {
-            return false
-        }
+    var hasContactInfo: Bool {
+        hasPhone || hasSecondaryPhone || hasEmail || hasSecondaryEmail
+            || hasAddress || hasSecondaryAddress || hasBirthday || hasAnniversary
     }
 
     // A factory (not a stored static) so each call site — previews, the
@@ -168,26 +131,26 @@ class SelectedContact {
     static var sampleData: SelectedContact {
         SelectedContact(
             address: "2190 E 11th Ave",
-            anniversary: "06/20/2020",
+            anniversary: "06-20",
             anniversary_notification_id: UUID(),
-            birthday: "05/16/1994",
+            birthday: "05-16",
             birthday_notification_id: UUID(),
             email: "ryantoken13@gmail.com",
             id: UUID(),
             name: "Ryan Token",
             next_notification_date_time: "",
             notification_identifier: UUID(),
-            notification_preference: 0,
+            notification_preference: NotificationOption.never.rawValue,
             notification_preference_custom_day: 3,
-            notification_preference_custom_month: 0,
+            notification_preference_custom_month: 1,
             notification_preference_custom_year: 0,
             notification_preference_hour: 12,
             notification_preference_minute: 0,
-            notification_preference_quarterly_set_time: Date(),
+            notification_preference_quarterly_set_time: .now,
             notification_preference_weekday: 3,
             notification_preference_week_of_month: 2,
             phone: "6363687771",
-            picture: "photo-as-data-string",
+            picture: "",
             secondary_address: "",
             secondary_email: "",
             secondary_phone: "",
@@ -195,3 +158,5 @@ class SelectedContact {
         )
     }
 }
+
+// swiftlint:enable identifier_name

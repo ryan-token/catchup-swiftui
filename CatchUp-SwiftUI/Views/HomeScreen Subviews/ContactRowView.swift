@@ -9,72 +9,54 @@
 import SwiftUI
 
 struct ContactRowView: View {
-    @Environment(DataController.self) private var dataController
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     let contact: SelectedContact
 
-    @State private var shouldShowUnreadIndicator = false
+    /// When the unread indicator was last evaluated; refreshed each time the app becomes active.
+    @State private var referenceDate = Date.now
 
     var body: some View {
         HStack {
-            ContactPictureView(contact: contact)
+            ContactPictureView(picture: contact.picture)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(contact.name)
                     .font(.headline)
 
-                Text(Converter.convertNotificationPreferenceToString(contact: contact))
+                Text(Converter.notificationPreferenceDescription(for: contact))
                     .font(.caption)
-                    .foregroundStyle(subtitleStyle)
+                    // A hierarchical style adapts to the selection highlight on its own.
+                    .foregroundStyle(.secondary)
             }
 
             Spacer()
 
-            if shouldShowUnreadIndicator {
-                Circle()
-                    .foregroundStyle(.orange)
-                    .frame(width: 15, height: 15)
-                    .padding(.horizontal)
-                    .accessibilityLabel("Unread")
-            }
-        }
-        .onAppear {
-            shouldShowUnreadIndicator = determineIfShouldShowIndicator()
+            Circle()
+                .fill(.orange)
+                .frame(width: 15, height: 15)
+                .padding(.horizontal)
+                .opacity(shouldShowUnreadIndicator ? 1 : 0)
+                .accessibilityLabel("Unread")
+                .accessibilityHidden(!shouldShowUnreadIndicator)
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
-                shouldShowUnreadIndicator = determineIfShouldShowIndicator()
+                referenceDate = .now
             }
         }
-        .onChange(of: dataController.selectedContact) {
-            shouldShowUnreadIndicator = determineIfShouldShowIndicator()
-        }
     }
 
-    private var isHighlightedOnRegularWidth: Bool {
-        horizontalSizeClass == .regular && dataController.selectedContact == contact
-    }
-
-    private var subtitleStyle: AnyShapeStyle {
-        isHighlightedOnRegularWidth ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary)
-    }
-
-    private func determineIfShouldShowIndicator() -> Bool {
+    /// Shows once the stored unread time has passed. Stored times are zero-padded,
+    /// so comparing the strings compares the dates.
+    private var shouldShowUnreadIndicator: Bool {
         guard !contact.unread_badge_date_time.isEmpty else { return false }
-        let formattedTodayDate = Self.storedDateFormatter.string(from: .now)
-        return formattedTodayDate >= contact.unread_badge_date_time
+        return StoredDateFormat.string(from: referenceDate) >= contact.unread_badge_date_time
     }
-
-    private static let storedDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        return formatter
-    }()
 }
 
 #Preview {
-    ContactRowView(contact: .sampleData)
-        .environment(DataController())
+    List {
+        ContactRowView(contact: .sampleData)
+    }
 }

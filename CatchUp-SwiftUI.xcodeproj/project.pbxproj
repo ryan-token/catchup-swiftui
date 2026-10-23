@@ -10,7 +10,18 @@
 		144DBE22245C8282008FDBB6 /* PhoneNumberKit in Frameworks */ = {isa = PBXBuildFile; productRef = 144DBE21245C8282008FDBB6 /* PhoneNumberKit */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		F40E53B3308AD68C005F0696 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F48E37E622C455C3008B0B8B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F48E37ED22C455C3008B0B8B;
+			remoteInfo = "CatchUp-SwiftUI";
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		F40E53AC308AD68C005F0696 /* CatchUpTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CatchUpTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F48E37EE22C455C3008B0B8B /* CatchUp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CatchUp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -25,10 +36,18 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		F40E53AD308AD68C005F0696 /* CatchUpTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = CatchUpTests; sourceTree = "<group>"; };
 		F4E27B4B2ECCA70B00712BF6 /* CatchUp-SwiftUI */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (F4E27B732ECCA70B00712BF6 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = "CatchUp-SwiftUI"; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		F40E53A9308AD68C005F0696 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F48E37EB22C455C3008B0B8B /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -44,6 +63,7 @@
 			isa = PBXGroup;
 			children = (
 				F4E27B4B2ECCA70B00712BF6 /* CatchUp-SwiftUI */,
+				F40E53AD308AD68C005F0696 /* CatchUpTests */,
 				F48E37EF22C455C3008B0B8B /* Products */,
 			);
 			sourceTree = "<group>";
@@ -52,6 +72,7 @@
 			isa = PBXGroup;
 			children = (
 				F48E37EE22C455C3008B0B8B /* CatchUp.app */,
+				F40E53AC308AD68C005F0696 /* CatchUpTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -59,6 +80,29 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		F40E53AB308AD68C005F0696 /* CatchUpTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F40E53B0308AD68C005F0696 /* Build configuration list for PBXNativeTarget "CatchUpTests" */;
+			buildPhases = (
+				F40E53A8308AD68C005F0696 /* Sources */,
+				F40E53A9308AD68C005F0696 /* Frameworks */,
+				F40E53AA308AD68C005F0696 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F40E53B4308AD68C005F0696 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				F40E53AD308AD68C005F0696 /* CatchUpTests */,
+			);
+			name = CatchUpTests;
+			packageProductDependencies = (
+			);
+			productName = CatchUpTests;
+			productReference = F40E53AC308AD68C005F0696 /* CatchUpTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		F48E37ED22C455C3008B0B8B /* CatchUp-SwiftUI */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = F48E380522C455CB008B0B8B /* Build configuration list for PBXNativeTarget "CatchUp-SwiftUI" */;
@@ -89,10 +133,14 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastSwiftUpdateCheck = 1100;
+				LastSwiftUpdateCheck = 2710;
 				LastUpgradeCheck = 2600;
 				ORGANIZATIONNAME = "Token Solutions";
 				TargetAttributes = {
+					F40E53AB308AD68C005F0696 = {
+						CreatedOnToolsVersion = 27.1;
+						TestTargetID = F48E37ED22C455C3008B0B8B;
+					};
 					F48E37ED22C455C3008B0B8B = {
 						CreatedOnToolsVersion = 11.0;
 					};
@@ -115,11 +163,19 @@
 			projectRoot = "";
 			targets = (
 				F48E37ED22C455C3008B0B8B /* CatchUp-SwiftUI */,
+				F40E53AB308AD68C005F0696 /* CatchUpTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		F40E53AA308AD68C005F0696 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F48E37EC22C455C3008B0B8B /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -130,6 +186,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		F40E53A8308AD68C005F0696 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F48E37EA22C455C3008B0B8B /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -139,7 +202,72 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		F40E53B4308AD68C005F0696 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F48E37ED22C455C3008B0B8B /* CatchUp-SwiftUI */;
+			targetProxy = F40E53B3308AD68C005F0696 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		F40E53B1308AD68C005F0696 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tokensolutions.CatchUpTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CatchUp.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CatchUp";
+			};
+			name = Debug;
+		};
+		F40E53B2308AD68C005F0696 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tokensolutions.CatchUpTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CatchUp.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CatchUp";
+			};
+			name = Release;
+		};
 		F48E380322C455CB008B0B8B /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -292,7 +420,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 3.2.3;
+				MARKETING_VERSION = 3.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tokensolutions.CatchUp;
 				PRODUCT_NAME = CatchUp;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -326,7 +454,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 3.2.3;
+				MARKETING_VERSION = 3.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tokensolutions.CatchUp;
 				PRODUCT_NAME = CatchUp;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -343,6 +471,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		F40E53B0308AD68C005F0696 /* Build configuration list for PBXNativeTarget "CatchUpTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F40E53B1308AD68C005F0696 /* Debug */,
+				F40E53B2308AD68C005F0696 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		F48E37E922C455C3008B0B8B /* Build configuration list for PBXProject "CatchUp-SwiftUI" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

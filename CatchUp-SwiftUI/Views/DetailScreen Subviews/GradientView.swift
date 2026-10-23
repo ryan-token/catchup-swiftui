@@ -1,5 +1,5 @@
 //
-//  Gradient.swift
+//  GradientView.swift
 //  CatchUp-SwiftUI
 //
 //  Created by Ryan Token on 4/11/20.
@@ -8,27 +8,26 @@
 
 import SwiftUI
 
+/// A decorative blue glow that fades into whatever is behind it.
 struct GradientView: View {
+    /// The glow's height. Its radii scale with it, so it keeps its shape however tall it is.
+    let height: CGFloat
+
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        Rectangle()
-            .fill(RadialGradient(
-                gradient: Gradient(colors: [.blue, isLight ? .white : .black]),
-                center: .bottom,
-                startRadius: isLight ? 80 : 40,
-                endRadius: 190
-            ))
+        RadialGradient(
+            colors: [.blue, .clear],
+            center: .bottom,
+            startRadius: height * (colorScheme == .light ? 0.55 : 0.3),
+            endRadius: height * 1.35
+        )
+        .frame(height: height)
+        .accessibilityHidden(true)
     }
-
-    private var isLight: Bool { colorScheme == .light }
 }
 
 #Preview {
-    VStack {
-        GradientView()
-            .ignoresSafeArea(edges: .top)
-            .frame(height: 150)
-        Spacer()
-    }
+    GradientView(height: 150)
+        .frame(maxHeight: .infinity, alignment: .top)
 }

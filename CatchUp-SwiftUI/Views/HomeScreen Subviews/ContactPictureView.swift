@@ -8,18 +8,25 @@
 
 import SwiftUI
 
+/// A small circular contact photo that scales with Dynamic Type.
 struct ContactPictureView: View {
-    let contact: SelectedContact
+    /// The stored Base64 photo. Passing the string rather than the contact means
+    /// this view decodes the image again only when the photo changes.
+    let picture: String
+
+    @ScaledMetric(relativeTo: .headline) private var size = 45
 
     var body: some View {
-        Converter.getContactPicture(from: contact.picture)
+        Converter.contactPicture(from: picture)
             .renderingMode(.original)
             .resizable()
-            .frame(width: 45, height: 45, alignment: .leading)
+            .scaledToFill()
+            .frame(width: size, height: size)
             .clipShape(.circle)
+            .accessibilityHidden(true)
     }
 }
 
 #Preview {
-    ContactPictureView(contact: .sampleData)
+    ContactPictureView(picture: "")
 }

@@ -11,15 +11,13 @@ import SwiftUI
 struct UpdatesScreenHeader: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Spacer()
-                .frame(height: 10)
-
             Text("New Update")
                 .font(.largeTitle)
                 .bold()
                 .foregroundStyle(.orange)
+                .accessibilityAddTraits(.isHeader)
 
-            Text("Version \(Utils.getCurrentAppVersion())")
+            Text("Version \(Utils.currentAppVersion)")
                 .font(.headline)
                 .foregroundStyle(.blue)
 
@@ -28,6 +26,7 @@ struct UpdatesScreenHeader: View {
 
             Divider()
         }
+        .padding(.top, 10)
     }
 }
 

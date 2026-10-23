@@ -8,41 +8,24 @@
 
 import SwiftUI
 
+/// The release notes sheet: its navigation stack and close button.
 struct UpdatesScreen: View {
-    private let currentVersionNotes: [String] = [
-        "Support for iOS 26 and Liquid Glass",
-        "Enable contact list searching",
-        "Various bug fixes and performance improvements"
-    ]
-
-    private let version3Notes: [String] = [
-        "A grid of your next CatchUps",
-        "Pull-to-refresh photo & contact information for your selected contacts",
-        "Unread indicators for contacts it's time to CatchUp with",
-        "Automatic cloud syncing with other Apple devices",
-        "UI redesign",
-        "Significant under-the-hood improvements"
-    ]
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 10) {
-                UpdatesScreenHeader()
-
-                ReleaseNotesSection(notes: currentVersionNotes)
-
-                Text("***From version 3.0***:")
-                    .padding(.top)
-
-                ReleaseNotesSection(notes: version3Notes)
-
-                Button(action: Utils.requestReviewManually) {
-                    CalloutButtonView(buttonText: "Review on the App Store", buttonColor: .orange)
+        NavigationStack {
+            // The header shows the title, so the bar carries only the close button.
+            UpdatesScreenContent()
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button(role: .close, action: close)
+                    }
                 }
-                .padding(.vertical)
-            }
         }
-        .padding([.top, .horizontal])
+    }
+
+    private func close() {
+        dismiss()
     }
 }
 

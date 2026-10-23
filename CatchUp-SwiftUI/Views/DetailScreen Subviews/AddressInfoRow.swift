@@ -13,8 +13,7 @@ struct AddressInfoRow: View {
     let title: LocalizedStringKey
     let address: String
 
-    @State private var isShowingGeocodingError = false
-    @State private var geocodingErrorMessage = ""
+    @State private var geocodingErrorMessage: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -24,41 +23,38 @@ struct AddressInfoRow: View {
             Button(address, action: openInMaps)
                 .foregroundStyle(.blue)
         }
-        .alert("Couldn't open in Maps", isPresented: $isShowingGeocodingError) {
-        } message: {
-            Text(geocodingErrorMessage)
+        .alert("Couldn't open in Maps", item: $geocodingErrorMessage) { _ in
+        } message: { message in
+            Text(message)
         }
     }
 
     private func openInMaps() {
         Task {
-            await openAddressInMaps(address: address)
+            await openAddressInMaps()
         }
     }
 
-    private func openAddressInMaps(address: String) async {
+    private func openAddressInMaps() async {
         guard let request = MKGeocodingRequest(addressString: address) else {
-            presentError("That address couldn't be parsed.")
+            geocodingErrorMessage = "That address couldn't be parsed."
             return
         }
         do {
             let mapItems = try await request.mapItems
             guard let destination = mapItems.first else {
-                presentError("No matching location was found.")
+                geocodingErrorMessage = "No matching location was found."
                 return
             }
             MKMapItem.openMaps(with: [destination])
         } catch {
-            presentError(error.localizedDescription)
+            geocodingErrorMessage = error.localizedDescription
         }
-    }
-
-    private func presentError(_ message: String) {
-        geocodingErrorMessage = message
-        isShowingGeocodingError = true
     }
 }
 
 #Preview {
-    AddressInfoRow(title: "Address", address: "2190 E 11th Ave")
+    List {
+        AddressInfoRow(title: "Address", address: "2190 E 11th Ave")
+    }
 }

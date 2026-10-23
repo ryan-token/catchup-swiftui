@@ -16,9 +16,9 @@ struct AnniversaryInfoRow: View {
             Text("Anniversary")
                 .font(.caption)
 
-            Text(Converter.getFormattedBirthdayOrAnniversary(from: contact.anniversary))
+            Text(Converter.formattedBirthdayOrAnniversary(from: contact.anniversary))
 
-            if !contact.preferenceIsNever() {
+            if contact.notificationOption != .never {
                 Text("💜 We will notify you the day before their anniversary")
                     .foregroundStyle(.purple)
                     .multilineTextAlignment(.leading)
