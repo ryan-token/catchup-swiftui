@@ -11,9 +11,9 @@ import SwiftUI
 /// The scrolling release notes shown after a major update.
 struct UpdatesScreenContent: View {
     private static let currentVersionNotes: [String] = [
-        "Support for iPhone Duo",
-        "Works better at any size",
-        "Bug fixes and performance improvements"
+        "Designed for iPhone Duo, with your contacts and their details side by side on the inner display",
+        "Tapping a reminder notification now opens that contact",
+        "Bug fixes & performance improvements"
     ]
 
     private static let version3Notes: [String] = [
