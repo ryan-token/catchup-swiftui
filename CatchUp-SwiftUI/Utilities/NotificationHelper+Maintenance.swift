@@ -18,8 +18,18 @@ extension NotificationHelper {
         await removeNotifications(matching: ContactNotificationKeys(contact))
     }
 
-    /// Removes the notifications for keys captured from a contact, which may since have been deleted.
-    static func removeNotifications(matching keys: ContactNotificationKeys) async {
+    /// Removes the notifications of deleted contacts, using keys captured before deletion.
+    ///
+    /// Waits for any reset in progress, so the reset can't re-add them afterward.
+    static func removeNotifications(matching keys: [ContactNotificationKeys]) async {
+        await NotificationResetGate.shared.run {
+            for contactKeys in keys {
+                await removeNotifications(matching: contactKeys)
+            }
+        }
+    }
+
+    private static func removeNotifications(matching keys: ContactNotificationKeys) async {
         let center = UNUserNotificationCenter.current()
         let pending = await center.pendingNotificationRequests()
         let delivered = await center.deliveredNotifications()
@@ -76,17 +86,19 @@ extension NotificationHelper {
     /// `@AppStorage`) to recover from notifications stranded by past builds whose
     /// removal code targeted the wrong identifiers.
     static func performOneTimeNuclearReset(for selectedContacts: [SelectedContact]) async {
-        let center = UNUserNotificationCenter.current()
-        center.removeAllPendingNotificationRequests()
-        center.removeAllDeliveredNotifications()
+        await NotificationResetGate.shared.run {
+            let center = UNUserNotificationCenter.current()
+            center.removeAllPendingNotificationRequests()
+            center.removeAllDeliveredNotifications()
 
-        // Give the system a moment to settle before re-scheduling.
-        try? await Task.sleep(for: .milliseconds(200))
+            // Give the system a moment to settle before re-scheduling.
+            try? await Task.sleep(for: .milliseconds(200))
 
-        // `createNewNotification` short-circuits for contacts with nothing to
-        // schedule, so we can iterate the full set without an extra filter.
-        for contact in selectedContacts {
-            await createNewNotification(for: contact)
+            // `createNewNotification` short-circuits for contacts with nothing to
+            // schedule, so we can iterate the full set without an extra filter.
+            for contact in selectedContacts where !contact.isRemoved {
+                await createNewNotification(for: contact)
+            }
         }
     }
 
@@ -102,20 +114,42 @@ extension NotificationHelper {
                 try? await Task.sleep(for: .seconds(delayTime))
             }
 
+            // Contacts deleted since the caller captured them have had their notifications
+            // purged already, and can't be read. Checked on each pass, since a contact can
+            // be deleted while an earlier one is awaited.
+
             // Phase 1: Purge all existing notifications for each contact.
-            for contact in selectedContacts {
+            for contact in selectedContacts where !contact.isRemoved {
                 await removeExistingNotifications(for: contact)
             }
 
             // Phase 2: Re-schedule notifications with stable identifiers. This includes
             // contacts set to Never, which still get birthday and anniversary reminders.
-            for contact in selectedContacts {
+            for contact in selectedContacts where !contact.isRemoved {
                 await createNewNotification(for: contact)
             }
 
-            for contact in selectedContacts where contact.unread_badge_date_time.isEmpty {
+            let needsUnreadTime = { (contact: SelectedContact) in
+                !contact.isRemoved && !isComparableUnreadTime(contact.unread_badge_date_time)
+            }
+            for contact in selectedContacts where needsUnreadTime(contact) {
                 contact.unread_badge_date_time = contact.next_notification_date_time
             }
         }
+    }
+
+    /// Whether a stored unread time can be compared against the current time.
+    ///
+    /// Empty means none has been set. Older versions wrote it in the device's calendar and
+    /// clock format, which can fail to parse, or parse to a year centuries away, such as
+    /// 2569 from the Buddhist calendar or 0008 from the Japanese one.
+    nonisolated static func isComparableUnreadTime(_ string: String, now: Date = .now) -> Bool {
+        // Parsing ignores trailing text such as " AM", so also require the exact format.
+        guard let date = StoredDateFormat.date(from: string),
+              StoredDateFormat.string(from: date) == string else {
+            return false
+        }
+        let century: TimeInterval = 100 * 365 * 86_400
+        return abs(date.timeIntervalSince(now)) < century
     }
 }

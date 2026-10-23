@@ -15,6 +15,7 @@ import Foundation
 /// Format:
 /// - Thread: `contact.<uuid>`
 /// - Per-kind:  `contact.<uuid>.general` | `.birthday` | `.anniversary`
+/// - Quarterly: `contact.<uuid>.general.q1` through `.q4`, one per quarter
 enum NotificationID {
     static let prefix = "contact."
 
@@ -24,6 +25,16 @@ enum NotificationID {
 
     static func general(_ contact: SelectedContact) -> String {
         "\(thread(contact)).general"
+    }
+
+    /// A quarterly reminder's identifiers, one for each quarter's trigger.
+    static func quarters(_ contact: SelectedContact) -> [String] {
+        (1...4).map { "\(general(contact)).q\($0)" }
+    }
+
+    /// Every identifier a general reminder can use, whatever its frequency.
+    static func allGeneral(_ contact: SelectedContact) -> [String] {
+        [general(contact)] + quarters(contact)
     }
 
     static func birthday(_ contact: SelectedContact) -> String {

@@ -111,6 +111,10 @@ class SelectedContact {
         NotificationOption(rawValue: notification_preference) ?? .never
     }
 
+    /// Whether the contact has been deleted. One deleted on another device can lose its
+    /// context without being marked deleted, so a missing context counts too.
+    var isRemoved: Bool { isDeleted || modelContext == nil }
+
     var hasPhone: Bool { !phone.isEmpty }
     var hasSecondaryPhone: Bool { !secondary_phone.isEmpty }
     var hasEmail: Bool { !email.isEmpty }

@@ -34,22 +34,13 @@ struct RemoveContactButton: View {
     }
 
     private func deleteContact() {
-        let notificationKeys = ContactNotificationKeys(contact)
-
         // Leave the detail view first so nothing renders the contact once it's deleted.
         // This pops the stack when collapsed and clears the detail column when expanded.
         selection = nil
 
         // Delete on the next turn, once the detail view has stopped rendering the contact.
-        // The captured keys still find its notifications after the row is gone.
         Task {
-            modelContext.delete(contact)
-            do {
-                try modelContext.save()
-            } catch {
-                assertionFailure("Failed to save after deleting contact: \(error)")
-            }
-            await NotificationHelper.removeNotifications(matching: notificationKeys)
+            modelContext.remove([contact])
         }
     }
 }

@@ -9,14 +9,13 @@
 import SwiftUI
 
 struct HowOftenPicker: View {
-    /// The raw value of the selected `NotificationOption`.
-    @Binding var selection: Int
+    @Binding var selection: NotificationOption
 
     var body: some View {
         Picker("How often?", selection: $selection) {
             ForEach(NotificationOption.allCases) { option in
                 Text(option.title)
-                    .tag(option.rawValue)
+                    .tag(option)
             }
         }
     }
@@ -24,6 +23,6 @@ struct HowOftenPicker: View {
 
 #Preview {
     List {
-        HowOftenPicker(selection: .constant(0))
+        HowOftenPicker(selection: .constant(.never))
     }
 }

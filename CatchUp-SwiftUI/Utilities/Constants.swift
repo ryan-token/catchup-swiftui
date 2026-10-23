@@ -9,8 +9,6 @@
 import Foundation
 
 enum Constants {
-    nonisolated static let ninetyDaysInSeconds: TimeInterval = 7776000
-
     private static let writeReviewAddress =
         "https://apps.apple.com/us/app/catchup-keep-in-touch/id1358023550?action=write-review"
 

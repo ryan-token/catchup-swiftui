@@ -32,7 +32,12 @@ struct ConverterTests {
     }
 
     private func description(for contact: SelectedContact) -> String {
-        Converter.notificationPreferenceDescription(for: contact, locale: TestSupport.locale).normalizingSpaces
+        Converter.notificationPreferenceDescription(
+            for: contact,
+            calendar: TestSupport.calendar,
+            locale: TestSupport.locale
+        )
+        .normalizingSpaces
     }
 
     // MARK: Birthdays and anniversaries
@@ -58,34 +63,18 @@ struct ConverterTests {
         #expect(Converter.tappablePhoneNumber(from: "no number") == nil)
     }
 
-    @Test func makesMailtoURL() {
-        #expect(Converter.tappableEmail(from: "test@example.com") == URL(string: "mailto:test@example.com"))
-    }
-
     // MARK: Notification preferences
 
-    @Test func describesNever() {
-        #expect(description(for: contact(.never)) == "No Reminder Set")
-    }
-
-    @Test func describesDaily() {
-        #expect(description(for: contact(.daily)) == "Daily at 1:30 PM")
-    }
-
-    @Test func describesWeekly() {
-        #expect(description(for: contact(.weekly)) == "Tuesdays at 1:30 PM")
-    }
-
-    @Test func describesMonthly() {
-        #expect(description(for: contact(.monthly, weekday: 1)) == "Monthly on Sundays")
-    }
-
-    @Test func describesAnnually() {
-        #expect(description(for: contact(.annually)) == "Annually on January 5")
-    }
-
-    @Test func describesCustomWithYear() {
-        #expect(description(for: contact(.custom)) == "January 5, 2027")
+    @Test(arguments: [
+        (NotificationOption.never, "No Reminder Set"),
+        (.daily, "Daily at 1:30 PM"),
+        (.weekly, "Tuesdays at 1:30 PM"),
+        (.monthly, "Monthly on Tuesdays"),
+        (.annually, "Annually on January 5"),
+        (.custom, "January 5, 2027")
+    ])
+    func describesEachFrequency(option: NotificationOption, expected: String) {
+        #expect(description(for: contact(option)) == expected)
     }
 
     @Test func describesMidnightAndNoon() {

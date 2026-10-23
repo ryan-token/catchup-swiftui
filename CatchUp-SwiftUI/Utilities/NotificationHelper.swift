@@ -42,59 +42,33 @@ enum NotificationHelper {
         }
     }
 
+    /// Schedules the general reminder: one repeating request for each of its triggers.
     static func addGeneralNotification(for contact: SelectedContact) async {
-        let content = UNMutableNotificationContent()
-        content.title = "👋 CatchUp with \(contact.name)"
-        content.body = NotificationMessages.randomGeneralBody()
+        let identifiers = contact.notificationOption == .quarterly
+            ? NotificationID.quarters(contact)
+            : [NotificationID.general(contact)]
 
-        await scheduleNotification(
-            identifier: NotificationID.general(contact),
-            category: Category.general,
-            content: content,
-            trigger: generalTrigger(for: contact),
-            for: contact
-        )
-    }
+        for (identifier, components) in zip(identifiers, generalDateComponents(for: contact)) {
+            let content = UNMutableNotificationContent()
+            content.title = "👋 CatchUp with \(contact.name)"
+            content.body = NotificationMessages.randomGeneralBody()
 
-    /// The general reminder's trigger.
-    ///
-    /// Quarterly reminders fire once, on the next 90-day mark counted from when quarterly
-    /// was chosen. A repeating interval would restart its count on every reschedule, so it
-    /// would never fire for someone who opens the app more often than every 90 days.
-    /// Each reschedule sets up the next quarter instead.
-    static func generalTrigger(for contact: SelectedContact, now: Date = .now) -> UNNotificationTrigger {
-        guard contact.notificationOption == .quarterly else {
-            let components = getNotificationDateComponents(for: contact)
-            return UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
-        }
-
-        let fireDate = nextQuarterlyFireDate(from: contact.notification_preference_quarterly_set_time, now: now)
-        return UNTimeIntervalNotificationTrigger(timeInterval: fireDate.timeIntervalSince(now), repeats: false)
-    }
-
-    /// Schedules the next quarter for quarterly contacts whose last reminder has fired
-    /// while the app stayed in memory, so it doesn't wait for a cold launch.
-    static func scheduleNextQuarterlyReminders(for contacts: [SelectedContact]) async {
-        let quarterlyContacts = contacts.filter { $0.notificationOption == .quarterly }
-        guard !quarterlyContacts.isEmpty else { return }
-
-        // Never prompt for permission when the app comes to the foreground.
-        let settings = await UNUserNotificationCenter.current().notificationSettings()
-        guard settings.authorizationStatus == .authorized else { return }
-
-        // Inside the gate, so this can't land between a reset's purge and reschedule.
-        await NotificationResetGate.shared.run {
-            for contact in quarterlyContacts where contact.modelContext != nil {
-                await addGeneralNotification(for: contact)
-            }
+            await scheduleNotification(
+                identifier: identifier,
+                category: Category.general,
+                content: content,
+                trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: true),
+                for: contact
+            )
         }
     }
 
     static func addBirthdayNotification(for contact: SelectedContact) async {
-        guard let dateComponents = getBirthdayDateComponents(for: contact) else {
+        guard var dateComponents = getBirthdayDateComponents(for: contact) else {
             Logger.notifications.error("Skipping a birthday notification with an unreadable date")
             return
         }
+        dateComponents.calendar = gregorian()
 
         let content = UNMutableNotificationContent()
         content.title = "🥳 Today is \(contact.name)'s birthday!"
@@ -110,10 +84,11 @@ enum NotificationHelper {
     }
 
     static func addAnniversaryNotification(for contact: SelectedContact) async {
-        guard let dateComponents = getAnniversaryDateComponents(for: contact) else {
+        guard var dateComponents = getAnniversaryDateComponents(for: contact) else {
             Logger.notifications.error("Skipping an anniversary notification with an unreadable date")
             return
         }
+        dateComponents.calendar = gregorian()
 
         let content = UNMutableNotificationContent()
         content.title = "😍 Tomorrow is \(contact.name)'s anniversary!"
@@ -165,17 +140,6 @@ enum NotificationHelper {
         } catch {
             Logger.notifications.error("Failed to schedule notification \(identifier): \(error)")
         }
-    }
-
-    static func updateNotificationTime(for contact: SelectedContact, hour: Int, minute: Int) {
-        contact.notification_preference_hour = hour
-        contact.notification_preference_minute = minute
-    }
-
-    static func updateNotificationCustomDate(for contact: SelectedContact, month: Int, day: Int, year: Int) {
-        contact.notification_preference_custom_month = month
-        contact.notification_preference_custom_day = day
-        contact.notification_preference_custom_year = year
     }
 
     /// Recalculates the stored next date, writing only when it changed so unchanged

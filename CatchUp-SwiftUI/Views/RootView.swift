@@ -20,8 +20,7 @@ struct RootView: View {
         NavigationSplitView {
             HomeScreen(selection: $selectedContact)
         } detail: {
-            // A contact deleted on another device can lose its context without being marked deleted.
-            if let selectedContact, !selectedContact.isDeleted, selectedContact.modelContext != nil {
+            if let selectedContact, !selectedContact.isRemoved {
                 DetailScreen(contact: selectedContact, selection: $selectedContact)
                     // Give each contact fresh detail state.
                     .id(selectedContact.id)

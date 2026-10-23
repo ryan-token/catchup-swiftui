@@ -13,24 +13,20 @@ struct BirthdayOrAnniversaryRow: View {
     let contact: SelectedContact
 
     var body: some View {
-        if contact.hasBirthday, contact.next_notification_date_time.contains(contact.birthday) {
+        if let birthdayDate = NotificationHelper.nextBirthdayDate(for: contact),
+           contact.next_notification_date_time == birthdayDate {
             Text("🥳 \(ContactHelper.firstName(for: contact))'s birthday!")
                 .foregroundStyle(.orange)
                 .frame(maxWidth: .infinity)
                 .multilineTextAlignment(.center)
                 .padding(.top, 2)
-        } else if let anniversaryString = dayBeforeAnniversaryString(),
-                  contact.next_notification_date_time == anniversaryString {
+        } else if let anniversaryDate = NotificationHelper.nextAnniversaryDate(for: contact),
+                  contact.next_notification_date_time == anniversaryDate {
             Text("💜 The day before their anniversary!")
                 .foregroundStyle(.purple)
                 .multilineTextAlignment(.leading)
                 .padding(.top, 2)
         }
-    }
-
-    private func dayBeforeAnniversaryString() -> String? {
-        NotificationHelper.getAnniversaryDateComponents(for: contact)
-            .map { NotificationHelper.calculateDateStringFromComponents($0) }
     }
 }
 

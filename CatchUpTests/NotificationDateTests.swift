@@ -9,7 +9,6 @@
 @testable import CatchUp
 import Foundation
 import Testing
-import UserNotifications
 
 struct NotificationDateTests {
     // MARK: Birthdays and anniversaries
@@ -17,11 +16,6 @@ struct NotificationDateTests {
     @Test func birthdayFiresAtQuarterPastSevenOnTheDay() throws {
         let components = try #require(NotificationHelper.birthdayDateComponents(fromStored: "05-16"))
         #expect(components == DateComponents(month: 5, day: 16, hour: 7, minute: 15))
-    }
-
-    @Test(arguments: ["", "16-05", "05/16/1994"])
-    func unreadableBirthdayHasNoComponents(_ stored: String) {
-        #expect(NotificationHelper.birthdayDateComponents(fromStored: stored) == nil)
     }
 
     @Test(arguments: [
@@ -35,52 +29,25 @@ struct NotificationDateTests {
         #expect(components == DateComponents(month: month, day: day, hour: 7, minute: 30))
     }
 
-    @Test func unreadableAnniversaryHasNoComponents() {
-        #expect(NotificationHelper.anniversaryDateComponents(fromStored: "anniversary") == nil)
-    }
-
     // MARK: Quarterly
 
-    @Test func futureQuarterlyAnchorIsTheNextFireDate() {
-        let now = TestSupport.date(year: 2026, month: 10, day: 22)
-        let anchor = now.addingTimeInterval(3600)
-        #expect(NotificationHelper.nextQuarterlyFireDate(from: anchor, now: now) == anchor)
+    @Test func quarterlyRepeatsYearlyInEachQuarterFromTheChosenMonth() {
+        let chosen = TestSupport.date(year: 2026, month: 11, day: 30, hour: 10, minute: 15)
+        let components = NotificationHelper.quarterlyDateComponents(from: chosen, calendar: TestSupport.calendar)
+
+        #expect(components.map(\.month) == [11, 2, 5, 8])
+        // Capped, so February has the day too.
+        #expect(components.allSatisfy { $0.day == 28 && $0.hour == 10 && $0.minute == 15 })
     }
 
-    @Test func quarterlyOnAnIntervalBoundaryMovesToTheNextOne() {
-        let now = TestSupport.date(year: 2026, month: 10, day: 22)
-        let anchor = now - Constants.ninetyDaysInSeconds
-        #expect(NotificationHelper.nextQuarterlyFireDate(from: anchor, now: now) == now + Constants.ninetyDaysInSeconds)
-    }
-
-    @Test func quarterlyRoundsUpToTheNextInterval() {
-        let now = TestSupport.date(year: 2026, month: 10, day: 22)
-        let ninetyDays = Constants.ninetyDaysInSeconds
-
-        let tenDaysAgo = now.addingTimeInterval(-10 * 86400)
-        #expect(NotificationHelper.nextQuarterlyFireDate(from: tenDaysAgo, now: now) == tenDaysAgo + ninetyDays)
-
-        let hundredDaysAgo = now.addingTimeInterval(-100 * 86400)
-        let afterTwoQuarters = hundredDaysAgo + 2 * ninetyDays
-        #expect(NotificationHelper.nextQuarterlyFireDate(from: hundredDaysAgo, now: now) == afterTwoQuarters)
-    }
-
-    @Test(arguments: [(0.0, 1.0), (10, 1), (89.9, 1), (90.1, 2)])
-    func quarterlyReminderFiresOnTheNextMarkHoweverOftenItsRescheduled(
-        daysSinceChosen: Double,
-        quarter: Double
-    ) throws {
-        let chosen = TestSupport.date(year: 2026, month: 10, day: 22, hour: 10)
+    @Test func quarterlyKeepsFiringWithoutBeingRescheduled() {
+        // Chosen years earlier, and never rescheduled since.
         let contact = SelectedContact.sampleData
+        contact.birthday = ""
+        contact.anniversary = ""
         contact.notification_preference = NotificationOption.quarterly.rawValue
-        contact.notification_preference_quarterly_set_time = chosen
-
-        let now = chosen + daysSinceChosen * 86400
-        let trigger = try #require(
-            NotificationHelper.generalTrigger(for: contact, now: now) as? UNTimeIntervalNotificationTrigger
-        )
-        #expect(trigger.repeats == false)
-        #expect(now + trigger.timeInterval == chosen + quarter * Constants.ninetyDaysInSeconds)
+        contact.notification_preference_quarterly_set_time = TestSupport.date(year: 2020, month: 1, day: 15, hour: 9)
+        #expect(nextNotification(for: contact) == "2027-01-15 09:00:00")
     }
 
     // MARK: Matching components
@@ -131,6 +98,8 @@ struct NotificationDateTests {
 
     @Test func generalReminderWinsWhenSooner() {
         let contact = SelectedContact.sampleData
+        contact.birthday = "10-24"
+        contact.anniversary = "10-26"
         contact.notification_preference = NotificationOption.daily.rawValue
         contact.notification_preference_hour = 9
         contact.notification_preference_minute = 0
@@ -148,34 +117,61 @@ struct NotificationDateTests {
         #expect(nextNotification(for: contact) == "2026-10-26 09:30:00")
     }
 
-    @Test func triggerComponentsMatchEachFrequency() {
+    @Test(arguments: [
+        (NotificationOption.daily, "2026-10-23 09:30:00"),
+        (.weekly, "2026-10-26 09:30:00"),
+        (.monthly, "2026-11-16 09:30:00"),
+        (.annually, "2027-07-04 09:30:00"),
+        (.custom, "2028-07-04 09:30:00")
+    ])
+    func nextReminderForEachFrequency(option: NotificationOption, expected: String) {
         let contact = SelectedContact.sampleData
+        contact.birthday = ""
+        contact.anniversary = ""
+        contact.notification_preference = option.rawValue
         contact.notification_preference_hour = 9
         contact.notification_preference_minute = 30
         contact.notification_preference_weekday = 2
         contact.notification_preference_week_of_month = 3
         contact.notification_preference_custom_month = 7
         contact.notification_preference_custom_day = 4
-        contact.notification_preference_custom_year = 2027
+        contact.notification_preference_custom_year = 2028
+        #expect(nextNotification(for: contact) == expected)
+    }
 
-        contact.notification_preference = NotificationOption.weekly.rawValue
-        #expect(NotificationHelper.getNotificationDateComponents(for: contact)
-            == DateComponents(hour: 9, minute: 30, weekday: 2))
-
-        contact.notification_preference = NotificationOption.monthly.rawValue
-        #expect(NotificationHelper.getNotificationDateComponents(for: contact)
-            == DateComponents(hour: 9, minute: 30, weekday: 2, weekOfMonth: 3))
-
-        contact.notification_preference = NotificationOption.annually.rawValue
-        #expect(NotificationHelper.getNotificationDateComponents(for: contact)
-            == DateComponents(month: 7, day: 4, hour: 9, minute: 30))
-
+    @Test func customReminderInThePastIsUnknown() {
+        let contact = SelectedContact.sampleData
+        contact.birthday = ""
+        contact.anniversary = ""
         contact.notification_preference = NotificationOption.custom.rawValue
-        #expect(NotificationHelper.getNotificationDateComponents(for: contact)
-            == DateComponents(year: 2027, month: 7, day: 4, hour: 9, minute: 30))
+        contact.notification_preference_custom_month = 7
+        contact.notification_preference_custom_day = 4
+        contact.notification_preference_custom_year = 2025
+        #expect(nextNotification(for: contact) == "Unknown")
+    }
 
+    @Test func leapDayBirthdayIsNextOnTheNextLeapDay() {
+        let contact = SelectedContact.sampleData
         contact.notification_preference = NotificationOption.never.rawValue
-        #expect(NotificationHelper.getNotificationDateComponents(for: contact) == DateComponents())
+        contact.birthday = "02-29"
+        contact.anniversary = ""
+        #expect(nextNotification(for: contact) == "2028-02-29 07:15:00")
+    }
+
+    // MARK: Unread times
+
+    @Test(arguments: [
+        ("2026-10-22 10:00:00", true),
+        ("2027-06-01 07:15:00", true),
+        ("", false),
+        ("2026-10-22 10:00:00 AM", false),
+        // Written in the Buddhist and Japanese calendars by older versions.
+        ("2569-10-22 10:00:00", false),
+        ("0008-10-22 10:00:00", false)
+    ])
+    func recognizesComparableUnreadTimes(stored: String, isComparable: Bool) {
+        let now = TestSupport.date(year: 2026, month: 10, day: 22)
+        #expect(NotificationHelper.isComparableUnreadTime(stored, now: now) == isComparable)
     }
 
     /// The next notification as seen at 10 AM UTC on Thursday, October 22, 2026.

@@ -36,7 +36,7 @@ struct DetailScreen: View {
             }
 
             Section("Notification Preference") {
-                NotificationPreferenceView(contact: contact, model: preferenceModel)
+                NotificationPreferenceView(model: preferenceModel)
             }
 
             if contact.hasContactInfo {
@@ -66,25 +66,6 @@ struct DetailScreen: View {
         .toolbar(removing: .title)
         .onChange(of: contact.id, initial: true) {
             preferenceModel.load(contact)
-        }
-        // Attached to the List, a single view, so each change is handled exactly once.
-        .onChange(of: contact.notification_preference) { _, newValue in
-            preferenceModel.preferenceChanged(to: newValue)
-        }
-        .onChange(of: contact.notification_preference_weekday) { _, newValue in
-            preferenceModel.weekdayChanged(to: newValue)
-        }
-        .onChange(of: contact.notification_preference_custom_month) {
-            preferenceModel.customMonthOrDayChanged()
-        }
-        .onChange(of: contact.notification_preference_custom_day) {
-            preferenceModel.customMonthOrDayChanged()
-        }
-        .onChange(of: preferenceModel.notificationPreferenceTime) { oldTime, newTime in
-            preferenceModel.timeChanged(from: oldTime, to: newTime)
-        }
-        .onChange(of: preferenceModel.notificationPreferenceCustomDate) { _, newDate in
-            preferenceModel.customDateChanged(to: newDate)
         }
         .task {
             Utils.clearUnreadBadge(for: contact)

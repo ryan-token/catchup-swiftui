@@ -32,6 +32,8 @@ struct HomeScreen: View {
     @State private var isShowingAboutSheet = false
     @State private var isShowingContactPicker = false
     @State private var pickedContact: CNContact?
+    /// When the rows' unread indicators were last evaluated; refreshed each time the app becomes active.
+    @State private var referenceDate = Date.now
 
     private static let addContactsSymbol = "person.crop.circle.fill.badge.plus"
 
@@ -59,7 +61,7 @@ struct HomeScreen: View {
                 Section("All CatchUps") {
                     ForEach(selectedContacts) { contact in
                         NavigationLink(value: contact) {
-                            ContactRowView(contact: contact)
+                            ContactRowView(contact: contact, referenceDate: referenceDate)
                         }
                     }
                     .onDelete(perform: removePendingNotificationsAndDeleteContacts)
@@ -72,6 +74,8 @@ struct HomeScreen: View {
                     "No CatchUps Yet",
                     systemImage: "person.crop.circle.badge.plus",
                     description: Text("Tap \(Image(systemName: Self.addContactsSymbol)) to add some.")
+                        // VoiceOver would read the symbol's name rather than the button's.
+                        .accessibilityLabel("Tap Add Contacts to add some.")
                 )
             }
         }
@@ -129,9 +133,9 @@ struct HomeScreen: View {
         }
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
+            referenceDate = .now
             updateNextNotificationTime(for: selectedContacts)
             await Utils.clearAppIconNotificationBadge()
-            await NotificationHelper.scheduleNextQuarterlyReminders(for: selectedContacts)
         }
         .sheet(isPresented: $isShowingUpdatesSheet) {
             UpdatesScreen()
@@ -214,23 +218,8 @@ struct HomeScreen: View {
             self.selection = nil
         }
 
-        // Delete right away so the list can animate the rows out, then purge
-        // their notifications using keys captured beforehand.
-        let notificationKeys = contactsToDelete.map(ContactNotificationKeys.init)
-        for contact in contactsToDelete {
-            modelContext.delete(contact)
-        }
-        do {
-            try modelContext.save()
-        } catch {
-            assertionFailure("Failed to save after deleting contacts: \(error)")
-        }
-
-        Task {
-            for keys in notificationKeys {
-                await NotificationHelper.removeNotifications(matching: keys)
-            }
-        }
+        // Delete right away so the list can animate the rows out.
+        modelContext.remove(contactsToDelete)
     }
 
     private func checkForUpdate() {

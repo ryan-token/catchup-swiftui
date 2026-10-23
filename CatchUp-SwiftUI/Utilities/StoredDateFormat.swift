@@ -15,6 +15,7 @@ import Foundation
 /// user's locale. Birthdays and anniversaries are stored as `MM-dd`.
 nonisolated enum StoredDateFormat {
     private static let gregorian = Calendar(identifier: .gregorian)
+    private static let posix = Locale(identifier: "en_US_POSIX")
 
     private static let dateTimeFormat: Date.FormatString = """
         \(year: .padded(4))-\(month: .twoDigits)-\(day: .twoDigits) \
@@ -23,7 +24,12 @@ nonisolated enum StoredDateFormat {
 
     /// Formats a date as a stored `yyyy-MM-dd HH:mm:ss` string in the given time zone.
     static func string(from date: Date, timeZone: TimeZone = .current) -> String {
-        let style = Date.VerbatimFormatStyle(format: dateTimeFormat, timeZone: timeZone, calendar: gregorian)
+        let style = Date.VerbatimFormatStyle(
+            format: dateTimeFormat,
+            locale: posix,
+            timeZone: timeZone,
+            calendar: gregorian
+        )
         return date.formatted(style)
     }
 
@@ -31,7 +37,7 @@ nonisolated enum StoredDateFormat {
     static func date(from string: String, timeZone: TimeZone = .current) -> Date? {
         let strategy = Date.ParseStrategy(
             format: dateTimeFormat,
-            locale: Locale(identifier: "en_US_POSIX"),
+            locale: posix,
             timeZone: timeZone,
             calendar: gregorian,
             isLenient: false

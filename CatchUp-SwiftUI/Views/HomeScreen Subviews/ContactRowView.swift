@@ -9,12 +9,9 @@
 import SwiftUI
 
 struct ContactRowView: View {
-    @Environment(\.scenePhase) private var scenePhase
-
     let contact: SelectedContact
-
-    /// When the unread indicator was last evaluated; refreshed each time the app becomes active.
-    @State private var referenceDate = Date.now
+    /// The time the unread indicator is evaluated against.
+    let referenceDate: Date
 
     var body: some View {
         HStack {
@@ -40,11 +37,6 @@ struct ContactRowView: View {
                 .accessibilityLabel("Unread")
                 .accessibilityHidden(!shouldShowUnreadIndicator)
         }
-        .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active {
-                referenceDate = .now
-            }
-        }
     }
 
     /// Shows once the stored unread time has passed. Stored times are zero-padded,
@@ -57,6 +49,6 @@ struct ContactRowView: View {
 
 #Preview {
     List {
-        ContactRowView(contact: .sampleData)
+        ContactRowView(contact: .sampleData, referenceDate: .now)
     }
 }

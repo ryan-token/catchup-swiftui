@@ -77,7 +77,11 @@ enum Converter {
     // MARK: Notification preferences
 
     /// A short description of the contact's reminder, such as "Tuesdays at 12:00 PM".
-    static func notificationPreferenceDescription(for contact: SelectedContact, locale: Locale = .current) -> String {
+    static func notificationPreferenceDescription(
+        for contact: SelectedContact,
+        calendar: Calendar = .current,
+        locale: Locale = .current
+    ) -> String {
         let time = notificationTimeDescription(for: contact, locale: locale)
         let weekday = DateSymbols.weekdayName(contact.notification_preference_weekday, locale: locale)
 
@@ -93,10 +97,9 @@ enum Converter {
         case .quarterly:
             ContactHelper.friendlyNextCatchUpTime(for: contact, forQuarterlyPreference: true, locale: locale)
         case .annually:
-            customDateDescription(for: contact, includesYear: false, locale: locale).map { "Annually on \($0)" }
-                ?? "Annually"
+            annualDateDescription(for: contact, locale: locale).map { "Annually on \($0)" } ?? "Annually"
         case .custom:
-            customDateDescription(for: contact, includesYear: true, locale: locale) ?? "Unknown"
+            customDateDescription(for: contact, calendar: calendar, locale: locale) ?? "Unknown"
         }
     }
 
@@ -119,23 +122,33 @@ enum Converter {
         return date.formatted(style)
     }
 
-    /// The contact's annual or custom reminder date, such as "January 5" or "January 5, 2027",
-    /// or `nil` if the stored date doesn't exist.
-    private static func customDateDescription(
-        for contact: SelectedContact,
-        includesYear: Bool,
-        locale: Locale
-    ) -> String? {
-        let year = includesYear ? contact.notification_preference_custom_year : 2000
-        guard let date = gregorianDate(
-            year: year,
+    /// The contact's annual reminder date, such as "January 5", or `nil` if it doesn't exist.
+    private static func annualDateDescription(for contact: SelectedContact, locale: Locale) -> String? {
+        gregorianDate(
+            year: 2000,
             month: contact.notification_preference_custom_month,
             day: contact.notification_preference_custom_day
-        ) else {
+        )
+        .map { $0.formatted(monthDayStyle(locale: locale)) }
+    }
+
+    /// The contact's custom reminder date, such as "January 5, 2027", or `nil` if it doesn't exist.
+    ///
+    /// Custom dates are stored in the device's calendar, so they're read and shown in it.
+    private static func customDateDescription(
+        for contact: SelectedContact,
+        calendar: Calendar,
+        locale: Locale
+    ) -> String? {
+        let components = DateComponents(
+            year: contact.notification_preference_custom_year,
+            month: contact.notification_preference_custom_month,
+            day: contact.notification_preference_custom_day
+        )
+        guard components.isValidDate(in: calendar), let date = calendar.date(from: components) else {
             return nil
         }
-        let style = monthDayStyle(locale: locale)
-        return date.formatted(includesYear ? style.year() : style)
+        return date.formatted(monthDayStyle(locale: locale, calendar: calendar).year())
     }
 
     // MARK: Helpers
@@ -152,9 +165,9 @@ enum Converter {
         return date
     }
 
-    private nonisolated static func monthDayStyle(locale: Locale) -> Date.FormatStyle {
-        var style = Date.FormatStyle(locale: locale, calendar: gregorian).month(.wide).day()
-        style.timeZone = gregorian.timeZone
+    private nonisolated static func monthDayStyle(locale: Locale, calendar: Calendar = gregorian) -> Date.FormatStyle {
+        var style = Date.FormatStyle(locale: locale, calendar: calendar).month(.wide).day()
+        style.timeZone = calendar.timeZone
         return style
     }
 }

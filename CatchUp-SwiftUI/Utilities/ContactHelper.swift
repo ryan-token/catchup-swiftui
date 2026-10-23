@@ -149,23 +149,11 @@ enum ContactHelper {
     }
 
     static func updateSelectedContacts(_ selectedContacts: [SelectedContact]) async {
-        // Look up snapshots in parallel off the main actor, then apply on main.
-        let names = selectedContacts.map(\.name)
+        // Look up snapshots off the main actor, then apply on main.
+        let snapshotsByName = await contactSnapshots(named: selectedContacts.map(\.name))
 
-        let snapshotsByName: [String: ContactSnapshot] = await withTaskGroup(
-            of: (String, ContactSnapshot?).self
-        ) { group in
-            for name in names {
-                group.addTask { (name, await contactSnapshot(named: name)) }
-            }
-            var result: [String: ContactSnapshot] = [:]
-            for await (name, snapshot) in group {
-                if let snapshot { result[name] = snapshot }
-            }
-            return result
-        }
-
-        for contact in selectedContacts {
+        // Skip contacts deleted during the lookup.
+        for contact in selectedContacts where !contact.isRemoved {
             if let snapshot = snapshotsByName[contact.name] {
                 apply(snapshot, to: contact)
             } else {
@@ -188,11 +176,23 @@ enum ContactHelper {
         NotificationHelper.updateNextNotificationDateTimeFor(contact: selectedContact)
     }
 
-    /// Looks up a `CNContact` by name and returns a `Sendable` snapshot of its fields.
-    /// Runs on the concurrent pool so it doesn't block the main actor during the
-    /// synchronous `unifiedContacts` query.
+    /// Looks up each name in the Contacts store, returning `Sendable` snapshots keyed by name.
+    ///
+    /// Runs on the concurrent pool so the synchronous queries don't block the main actor.
+    /// The queries share one store and run one after another, occupying a single thread.
     @concurrent
-    nonisolated static func contactSnapshot(named name: String) async -> ContactSnapshot? {
+    nonisolated static func contactSnapshots(named names: [String]) async -> [String: ContactSnapshot] {
+        let store = CNContactStore()
+        var snapshots: [String: ContactSnapshot] = [:]
+        for name in Set(names) {
+            guard !Task.isCancelled else { break }
+            snapshots[name] = contactSnapshot(named: name, in: store)
+        }
+        return snapshots
+    }
+
+    /// Looks up a `CNContact` by name and returns a snapshot of its fields.
+    private nonisolated static func contactSnapshot(named name: String, in store: CNContactStore) -> ContactSnapshot? {
         let keysToFetch: [CNKeyDescriptor] = [
             CNContactGivenNameKey as CNKeyDescriptor,
             CNContactFamilyNameKey as CNKeyDescriptor,
@@ -207,7 +207,7 @@ enum ContactHelper {
 
         do {
             let predicate = CNContact.predicateForContacts(matchingName: name)
-            let contacts = try CNContactStore().unifiedContacts(matching: predicate, keysToFetch: keysToFetch)
+            let contacts = try store.unifiedContacts(matching: predicate, keysToFetch: keysToFetch)
 
             // Match the same name format that `createSelectedContact` stored.
             guard let contact = contacts.first(where: { contactName(for: $0) == name }) else {

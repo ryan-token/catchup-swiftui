@@ -18,14 +18,13 @@ struct ContactNotificationKeys {
 
     init(_ contact: SelectedContact) {
         threadID = NotificationID.thread(contact)
-        identifiers = [
-            NotificationID.general(contact),
+        identifiers = Set(NotificationID.allGeneral(contact)).union([
             NotificationID.birthday(contact),
             NotificationID.anniversary(contact),
             contact.notification_identifier.uuidString,
             contact.birthday_notification_id.uuidString,
             contact.anniversary_notification_id.uuidString
-        ]
+        ])
         legacyTitles = [
             "👋 CatchUp with \(contact.name)",
             "🥳 Today is \(contact.name)'s birthday!",
