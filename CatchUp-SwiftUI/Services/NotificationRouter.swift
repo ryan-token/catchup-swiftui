@@ -32,6 +32,13 @@ final class NotificationRouter: NSObject, @MainActor UNUserNotificationCenterDel
         pendingContactID = uuidString.flatMap(UUID.init(uuidString:))
     }
 
+    #if DEBUG
+    /// Opens a contact as a tapped notification would, for screenshot mode.
+    func open(contactID: UUID) {
+        pendingContactID = contactID
+    }
+    #endif
+
     /// Main-actor isolated, because the system's completion handler behind this async
     /// method runs when it returns, and UIKit requires that on the main thread.
     func userNotificationCenter(

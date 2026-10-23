@@ -157,6 +157,11 @@ struct HomeScreen: View {
         // Runs once per launch, however many windows are open.
         guard launchCoordinator.beginColdLaunchSetup() else { return }
 
+        #if DEBUG
+        // Screenshots skip the update sheet, review prompt and notification setup.
+        guard !ScreenshotMode.isEnabled else { return }
+        #endif
+
         // Only check version on cold launch (IAPs load lazily when the tip jar appears)
         checkForUpdate()
 

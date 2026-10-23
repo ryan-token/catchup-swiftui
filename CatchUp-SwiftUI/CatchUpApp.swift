@@ -24,6 +24,16 @@ struct CatchUpApp: App {
         UNUserNotificationCenter.current().delegate = notificationRouter
         _notificationRouter = State(initialValue: notificationRouter)
 
+        #if DEBUG
+        if ScreenshotMode.isEnabled {
+            modelContainer = ScreenshotMode.makeContainer()
+            if let contact = ScreenshotMode.contactToOpen(in: modelContainer) {
+                notificationRouter.open(contactID: contact.id)
+            }
+            return
+        }
+        #endif
+
         // use the SQLite file created by Core Data originally, instead of SwiftData's default.store file
         let url = URL.applicationSupportDirectory.appending(path: "CatchUp-SwiftUI.sqlite")
         do {
