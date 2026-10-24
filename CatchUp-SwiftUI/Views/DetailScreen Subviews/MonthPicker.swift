@@ -9,19 +9,21 @@
 import SwiftUI
 
 struct MonthPicker: View {
+    /// The Gregorian month, from 1 to 12.
     @Binding var selection: Int
-    let options: [MonthOption]
 
     var body: some View {
         Picker("What month?", selection: $selection) {
-            ForEach(options.indices, id: \.self) { index in
-                Text(options[index].rawValue)
-                    .tag(index + 1)
+            ForEach(1...12, id: \.self) { month in
+                MonthName(month: month)
+                    .tag(month)
             }
         }
     }
 }
 
 #Preview {
-    MonthPicker(selection: .constant(1), options: MonthOption.allCases)
+    List {
+        MonthPicker(selection: .constant(1))
+    }
 }

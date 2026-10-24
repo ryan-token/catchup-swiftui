@@ -12,23 +12,27 @@ struct PhoneInfoRow: View {
     @Environment(\.openURL) private var openURL
 
     let title: LocalizedStringKey
-    let formattedNumber: String
-    let tappableNumber: URL?
-    @Binding var isShowingInvalidPhoneAlert: Bool
+    let phoneNumber: String
+
+    @State private var isShowingInvalidPhoneAlert = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title)
                 .font(.caption)
 
-            Button(formattedNumber, action: tapAction)
+            Button(Converter.formattedPhoneNumber(from: phoneNumber), action: call)
                 .foregroundStyle(.blue)
+        }
+        .alert("Phone number is invalid", isPresented: $isShowingInvalidPhoneAlert) {
+        } message: {
+            Text("Could not dial this phone number. Ensure the number is correct in your Contacts app.")
         }
     }
 
-    private func tapAction() {
-        if let tappableNumber {
-            openURL(tappableNumber)
+    private func call() {
+        if let url = Converter.tappablePhoneNumber(from: phoneNumber) {
+            openURL(url)
         } else {
             isShowingInvalidPhoneAlert = true
         }
@@ -36,10 +40,7 @@ struct PhoneInfoRow: View {
 }
 
 #Preview {
-    PhoneInfoRow(
-        title: "Phone",
-        formattedNumber: "+1 (636) 368-7771",
-        tappableNumber: URL(string: "tel://+16363687771"),
-        isShowingInvalidPhoneAlert: .constant(false)
-    )
+    List {
+        PhoneInfoRow(title: "Phone", phoneNumber: "6363687771")
+    }
 }

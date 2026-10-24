@@ -6,46 +6,47 @@
 //  Copyright © 2024 Token Solutions. All rights reserved.
 //
 
+import SwiftData
 import SwiftUI
 
 struct RemoveContactButton: View {
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
+
+    let contact: SelectedContact
+    /// The split view's selection; clearing it leaves the detail view in every layout.
+    @Binding var selection: SelectedContact?
 
     @State private var isShowingDeleteContactAlert = false
-    @Bindable var contact: SelectedContact
 
     var body: some View {
-        Button {
-            isShowingDeleteContactAlert = true
-        } label: {
-            CalloutButtonView(buttonText: "Remove \(contact.name)", buttonColor: .red)
+        Button(action: confirmRemoval) {
+            CalloutButtonView(title: "Remove \(contact.name)", color: .red)
         }
         .listRowBackground(Color.clear)
         .alert("Remove \(contact.name)?", isPresented: $isShowingDeleteContactAlert) {
-            Button("Remove", role: .destructive, action: deleteContactAndDismiss)
+            Button("Remove", role: .destructive, action: deleteContact)
             Button("Cancel", role: .cancel) {}
         }
     }
 
-    private func deleteContactAndDismiss() {
-        // Await the purge so iOS has cancelled every scheduled request for this
-        // contact before SwiftData deletes the row — otherwise the row is gone
-        // by the time we'd retry, and the orphan would persist until the next
-        // cold-launch reconciliation.
+    private func confirmRemoval() {
+        isShowingDeleteContactAlert = true
+    }
+
+    private func deleteContact() {
+        // Leave the detail view first so nothing renders the contact once it's deleted.
+        // This pops the stack when collapsed and clears the detail column when expanded.
+        selection = nil
+
+        // Delete on the next turn, once the detail view has stopped rendering the contact.
         Task {
-            await NotificationHelper.removeExistingNotifications(for: contact)
-            modelContext.delete(contact)
-            do {
-                try modelContext.save()
-            } catch {
-                assertionFailure("Failed to save after deleting contact: \(error)")
-            }
-            dismiss()
+            modelContext.remove([contact])
         }
     }
 }
 
 #Preview {
-    RemoveContactButton(contact: .sampleData)
+    List {
+        RemoveContactButton(contact: .sampleData, selection: .constant(nil))
+    }
 }

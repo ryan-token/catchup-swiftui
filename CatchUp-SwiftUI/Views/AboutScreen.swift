@@ -8,41 +8,24 @@
 
 import SwiftUI
 
+/// The About sheet: its navigation stack and close button.
 struct AboutScreen: View {
-    @State private var isShowingUpdateScreen = false
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .center, spacing: 15) {
-                Spacer()
-                    .frame(height: 75)
-
-                AboutScreenHeader()
-
-                OrangeDivider()
-                    .padding(.bottom)
-
-                TipJarSection()
-
-                OrangeDivider()
-
-                Button(action: Utils.requestReviewManually) {
-                    CalloutButtonView(buttonText: "Review on the App Store", buttonColor: .orange)
+        NavigationStack {
+            // The header names the app, so the bar carries only the close button.
+            AboutScreenContent()
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button(role: .close, action: close)
+                    }
                 }
-                .padding(.vertical)
+        }
+    }
 
-                Button("Show Latest Update Details") {
-                    isShowingUpdateScreen = true
-                }
-                .font(.headline)
-                .foregroundStyle(.blue)
-                .padding(.bottom)
-            }
-        }
-        .padding(.horizontal)
-        .sheet(isPresented: $isShowingUpdateScreen) {
-            UpdatesScreen()
-        }
+    private func close() {
+        dismiss()
     }
 }
 

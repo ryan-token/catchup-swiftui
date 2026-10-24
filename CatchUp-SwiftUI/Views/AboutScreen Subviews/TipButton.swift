@@ -10,24 +10,22 @@ import SwiftUI
 
 struct TipButton: View {
     let amount: String
+    // A closure is fine here: the tip jar re-renders only when products load or a purchase finishes.
     let action: () -> Void
 
     var body: some View {
-        Button(amount, action: action)
-            .font(.headline)
-            .foregroundStyle(.white)
-            .padding()
-            .background(tipGradient, in: .rect(cornerRadius: 20))
-            .shadow(radius: 10)
-            .frame(maxWidth: .infinity)
-    }
-
-    private var tipGradient: LinearGradient {
-        LinearGradient(
-            colors: [.orange, .red],
-            startPoint: .top,
-            endPoint: .bottom
-        )
+        Button(action: action) {
+            // Styling the label, not the button, makes the whole capsule tappable.
+            Text(amount)
+                .font(.headline)
+                .foregroundStyle(.white)
+                .padding()
+                .frame(maxWidth: .infinity)
+                .background(.linearGradient(colors: [.orange, .red], startPoint: .top, endPoint: .bottom),
+                            in: .rect(cornerRadius: 20))
+                .shadow(radius: 10)
+        }
+        .buttonStyle(.plain)
     }
 }
 

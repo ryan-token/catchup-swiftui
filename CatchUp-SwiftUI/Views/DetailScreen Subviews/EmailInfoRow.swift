@@ -9,21 +9,38 @@
 import SwiftUI
 
 struct EmailInfoRow: View {
+    @Environment(\.openURL) private var openURL
+
     let title: LocalizedStringKey
     let email: String
-    let action: () -> Void
+
+    @State private var isShowingEmailAlert = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title)
                 .font(.caption)
 
-            Button(email, action: action)
+            Button(email, action: confirmEmail)
                 .foregroundStyle(.blue)
         }
+        .alert("Email \(email)?", isPresented: $isShowingEmailAlert) {
+            if let url = Converter.tappableEmail(from: email) {
+                Button("Yes") {
+                    openURL(url)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+    }
+
+    private func confirmEmail() {
+        isShowingEmailAlert = true
     }
 }
 
 #Preview {
-    EmailInfoRow(title: "Email", email: "test@example.com", action: {})
+    List {
+        EmailInfoRow(title: "Email", email: "test@example.com")
+    }
 }

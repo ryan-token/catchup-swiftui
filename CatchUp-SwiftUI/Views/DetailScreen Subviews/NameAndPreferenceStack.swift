@@ -16,10 +16,13 @@ struct NameAndPreferenceStack: View {
             Text(contact.name)
                 .font(.largeTitle)
                 .bold()
+                .accessibilityAddTraits(.isHeader)
 
-            Text("Preference: \(Converter.convertNotificationPreferenceToString(contact: contact))")
+            Text("Preference: \(Converter.notificationPreferenceDescription(for: contact))")
                 .foregroundStyle(.secondary)
         }
+        .multilineTextAlignment(.center)
+        .padding(.horizontal)
         .padding(.bottom, 5)
     }
 }

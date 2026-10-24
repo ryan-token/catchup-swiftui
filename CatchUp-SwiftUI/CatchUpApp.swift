@@ -8,38 +8,49 @@
 
 import SwiftData
 import SwiftUI
+import UserNotifications
 
 @main
 struct CatchUpApp: App {
-    // use the SQLite file created by Core Data originally, instead of SwiftData's default.store file
-    let url = URL.applicationSupportDirectory.appending(path: "CatchUp-SwiftUI.sqlite")
     let modelContainer: ModelContainer
 
-    @State private var dataController = DataController()
+    @State private var launchCoordinator = LaunchCoordinator()
+    @State private var notificationRouter: NotificationRouter
 
     init() {
+        // Set before launch finishes, so the tap that launched the app is delivered.
+        // The center holds its delegate weakly; the state keeps the router alive.
+        let notificationRouter = NotificationRouter()
+        UNUserNotificationCenter.current().delegate = notificationRouter
+        _notificationRouter = State(initialValue: notificationRouter)
+
+        #if DEBUG
+        if ScreenshotMode.isEnabled {
+            modelContainer = ScreenshotMode.makeContainer()
+            if let contact = ScreenshotMode.contactToOpen(in: modelContainer) {
+                notificationRouter.open(contactID: contact.id)
+            }
+            return
+        }
+        #endif
+
+        // use the SQLite file created by Core Data originally, instead of SwiftData's default.store file
+        let url = URL.applicationSupportDirectory.appending(path: "CatchUp-SwiftUI.sqlite")
         do {
             modelContainer = try ModelContainer(
                 for: SelectedContact.self,
                 configurations: ModelConfiguration(url: url))
         } catch {
-            fatalError("Failed to initialize model container.")
+            fatalError("Failed to initialize model container: \(error)")
         }
     }
 
     var body: some Scene {
         WindowGroup {
-            NavigationSplitView {
-                HomeScreen()
-            } detail: {
-                if let selectedContact = dataController.selectedContact {
-                    DetailScreen(contact: selectedContact)
-                } else {
-                    NoContactSelectedScreen()
-                }
-            }
-            .environment(dataController)
-            .accentColor(.orange)
+            RootView()
+                .environment(launchCoordinator)
+                .environment(notificationRouter)
+                .tint(.orange)
         }
         .modelContainer(modelContainer)
     }

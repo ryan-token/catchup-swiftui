@@ -6,347 +6,168 @@
 //  Copyright © 2020 Token Solutions. All rights reserved.
 //
 
-import Foundation
-import SwiftUI
+import OSLog
 import PhoneNumberKit
+import SwiftUI
 
-struct Converter {
-    // MARK: Only used in DetailScreen
-    nonisolated static func getFormattedPhoneNumber(from phoneNumber: String, with phoneNumberKit: PhoneNumberUtility) -> String {
-        print("formatting phone number: \(phoneNumber)")
+/// Turns stored contact values into display strings, URLs, and images.
+enum Converter {
+    /// Shared because creating a `PhoneNumberUtility` loads its metadata, which is expensive.
+    private static let phoneNumberUtility = PhoneNumberUtility()
 
+    private nonisolated static let gregorian = Calendar(identifier: .gregorian)
+
+    /// Decoded photos keyed by their Base64 string, so rows scrolling back into view don't decode again.
+    private static let pictureCache = NSCache<NSString, UIImage>()
+
+    // MARK: Contact details
+
+    /// Formats a phone number internationally, or returns it unchanged if it can't be parsed.
+    static func formattedPhoneNumber(from phoneNumber: String) -> String {
         do {
-            let parsedPhoneNumber = try phoneNumberKit.parse(phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines))
-            let formattedPhoneNumber = phoneNumberKit.format(parsedPhoneNumber, toType: .international)
-            return formattedPhoneNumber
+            let parsed = try phoneNumberUtility.parse(phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines))
+            return phoneNumberUtility.format(parsed, toType: .international)
         } catch {
-            print("PhoneNumberKit parse error: \(error)")
+            Logger.contacts.debug("Couldn't parse a phone number: \(error)")
             return phoneNumber
         }
     }
-    
-    nonisolated static func getTappablePhoneNumber(from phoneNumber: String) -> URL? {
-        print("getting tappable phone number: \(phoneNumber)")
 
-        let tel = "tel://"
-        let cleanNumber = phoneNumber.replacingOccurrences(of: "[^\\d+]", with: "", options: [.regularExpression])
-        let formattedString = tel + cleanNumber
+    /// A `tel:` URL containing only the digits and `+` signs of the number.
+    nonisolated static func tappablePhoneNumber(from phoneNumber: String) -> URL? {
+        let digits = phoneNumber.replacing(/[^\d+]/, with: "")
+        guard !digits.isEmpty else { return nil }
+        return URL(string: "tel://\(digits)")
+    }
 
-        if let tappableNumber = URL(string: formattedString) {
-            return tappableNumber
-        } else {
+    /// A `mailto:` URL for the address, or `nil` if the address can't form a URL.
+    nonisolated static func tappableEmail(from emailAddress: String) -> URL? {
+        URL(string: "mailto:\(emailAddress)")
+    }
+
+    /// Formats a stored `MM-dd` birthday or anniversary, such as "May 16".
+    ///
+    /// Returns the stored string unchanged when it isn't in the expected format.
+    nonisolated static func formattedBirthdayOrAnniversary(
+        from storedDate: String,
+        locale: Locale = .current
+    ) -> String {
+        guard let monthDay = StoredDateFormat.monthDay(from: storedDate),
+              // 2000 is a leap year, so February 29 stays valid.
+              let date = gregorianDate(year: 2000, month: monthDay.month, day: monthDay.day) else {
+            return storedDate
+        }
+        return date.formatted(monthDayStyle(locale: locale))
+    }
+
+    /// Decodes a stored Base64 photo, falling back to the default contact photo.
+    static func contactPicture(from base64String: String) -> Image {
+        let key = base64String as NSString
+        if let cached = pictureCache.object(forKey: key) {
+            return Image(uiImage: cached)
+        }
+        guard let data = Data(base64Encoded: base64String),
+              let uiImage = UIImage(data: data) else {
+            return Image(.defaultPhoto)
+        }
+        pictureCache.setObject(uiImage, forKey: key)
+        return Image(uiImage: uiImage)
+    }
+
+    // MARK: Notification preferences
+
+    /// A short description of the contact's reminder, such as "Tuesdays at 12:00 PM".
+    static func notificationPreferenceDescription(
+        for contact: SelectedContact,
+        calendar: Calendar = .current,
+        locale: Locale = .current
+    ) -> String {
+        let time = notificationTimeDescription(for: contact, locale: locale)
+        let weekday = DateSymbols.weekdayName(contact.notification_preference_weekday, locale: locale)
+
+        return switch contact.notificationOption {
+        case .never:
+            "No Reminder Set"
+        case .daily:
+            "Daily at \(time)"
+        case .weekly:
+            weekday.map { "\($0)s at \(time)" } ?? "Weekly at \(time)"
+        case .monthly:
+            weekday.map { "Monthly on \($0)s" } ?? "Monthly"
+        case .quarterly:
+            ContactHelper.friendlyNextCatchUpTime(for: contact, forQuarterlyPreference: true, locale: locale)
+        case .annually:
+            annualDateDescription(for: contact, locale: locale).map { "Annually on \($0)" } ?? "Annually"
+        case .custom:
+            customDateDescription(for: contact, calendar: calendar, locale: locale) ?? "Unknown"
+        }
+    }
+
+    /// The contact's reminder time, such as "12:00 PM".
+    static func notificationTimeDescription(for contact: SelectedContact, locale: Locale = .current) -> String {
+        let components = DateComponents(
+            year: 2000,
+            month: 1,
+            day: 1,
+            hour: contact.notification_preference_hour,
+            minute: contact.notification_preference_minute
+        )
+        guard (0...23).contains(contact.notification_preference_hour),
+              (0...59).contains(contact.notification_preference_minute),
+              let date = gregorian.date(from: components) else {
+            return "Unknown"
+        }
+        var style = Date.FormatStyle(date: .omitted, time: .shortened, locale: locale, calendar: gregorian)
+        style.timeZone = gregorian.timeZone
+        return date.formatted(style)
+    }
+
+    /// The contact's annual reminder date, such as "January 5", or `nil` if it doesn't exist.
+    private static func annualDateDescription(for contact: SelectedContact, locale: Locale) -> String? {
+        gregorianDate(
+            year: 2000,
+            month: contact.notification_preference_custom_month,
+            day: contact.notification_preference_custom_day
+        )
+        .map { $0.formatted(monthDayStyle(locale: locale)) }
+    }
+
+    /// The contact's custom reminder date, such as "January 5, 2027", or `nil` if it doesn't exist.
+    ///
+    /// Custom dates are stored in the device's calendar, so they're read and shown in it.
+    private static func customDateDescription(
+        for contact: SelectedContact,
+        calendar: Calendar,
+        locale: Locale
+    ) -> String? {
+        let components = DateComponents(
+            year: contact.notification_preference_custom_year,
+            month: contact.notification_preference_custom_month,
+            day: contact.notification_preference_custom_day
+        )
+        guard components.isValidDate(in: calendar), let date = calendar.date(from: components) else {
             return nil
         }
-    }
-    
-    nonisolated static func getTappableEmail(from emailAddress: String) -> URL {
-        let mailto = "mailto:"
-        let formattedString = mailto + emailAddress
-        let tappableEmail = URL(string: formattedString)!
-        
-        return tappableEmail
-    }
-    
-    nonisolated static func getFormattedBirthdayOrAnniversary(from storedDate: String) -> String {
-        var month = storedDate.prefix(2)
-        let day = storedDate.suffix(2)
-        
-        switch month {
-        case "01":
-            month = "January"
-            break
-        case "02":
-            month = "February"
-            break
-        case "03":
-            month = "March"
-            break
-        case "04":
-            month = "April"
-            break
-        case "05":
-            month = "May"
-            break
-        case "06":
-            month = "June"
-            break
-        case "07":
-            month = "July"
-            break
-        case "08":
-            month = "August"
-            break
-        case "09":
-            month = "September"
-            break
-        case "10":
-            month = "October"
-            break
-        case "11":
-            month = "November"
-            break
-        case "12":
-            month = "December"
-            break
-        default:
-            break
-        }
-        
-        let formattedDate = month + " " + day
-        return String(formattedDate)
-    }
-    
-    
-    // MARK: Used in ContactPictureView and DetailScreen
-
-    nonisolated static func getContactPicture(from string: String) -> Image {
-        if let imageData = NSData(base64Encoded: string) {
-            if let uiImage = UIImage(data: imageData as Data) {
-                let image = Image(uiImage: uiImage)
-                return image
-            } else {
-                let image = Image(uiImage: UIImage(named: "DefaultPhoto")!)
-                return image
-            }
-        } else {
-            let image = Image(uiImage: UIImage(named: "DefaultPhoto")!)
-            return image
-        }
+        return date.formatted(monthDayStyle(locale: locale, calendar: calendar).year())
     }
 
-    static func convertNotificationPreferenceToString(contact: SelectedContact) -> String {
-		let time = convertHourAndMinuteFromIntToString(for: contact)
-		let weekday = convertWeekdayFromIntToString(for: contact)
+    // MARK: Helpers
 
-        if contact.preferenceIsNever() {
-            return "No Reminder Set"
-        } else if contact.preferenceIsDaily() {
-            return "Daily at \(time)"
-        } else if contact.preferenceIsWeekly() {
-            return "\(weekday)s at \(time)"
-        } else if contact.preferenceIsMonthly() {
-            return "Monthly on \(weekday)s"
-        } else if contact.preferenceIsQuarterly() {
-            return ContactHelper.getFriendlyNextCatchUpTime(for: contact, forQuarterlyPreference: true)
-        } else if contact.preferenceIsAnnually() {
-            let customDate = convertCustomDateFromIntToString(for: contact, annuallyOrCustom: .annually)
-            return "Annually on \(customDate)"
-        } else if contact.preferenceIsCustom() {
-            let customDate = convertCustomDateFromIntToString(for: contact, annuallyOrCustom: .custom)
-            return customDate
+    /// A Gregorian date for the given day, or `nil` if the month or day is out of range.
+    private nonisolated static func gregorianDate(year: Int, month: Int, day: Int) -> Date? {
+        guard (1...12).contains(month), (1...31).contains(day) else { return nil }
+        let components = DateComponents(year: year, month: month, day: day)
+        guard let date = gregorian.date(from: components),
+              gregorian.component(.day, from: date) == day else {
+            // The day doesn't exist in that month, such as April 31.
+            return nil
         }
+        return date
+    }
 
-        return ""
-	}
-
-    static func convertWeekdayFromIntToString(for contact: SelectedContact) -> String {
-		let weekday: String
-		
-		switch contact.notification_preference_weekday {
-		case 1:
-			weekday = "Sunday"
-			break
-		case 2:
-			weekday = "Monday"
-			break
-		case 3:
-			weekday = "Tuesday"
-			break
-		case 4:
-			weekday = "Wednesday"
-			break
-		case 5:
-			weekday = "Thursday"
-			break
-		case 6:
-			weekday = "Friday"
-			break
-		case 7:
-			weekday = "Saturday"
-			break
-		default:
-			weekday = "Unknown"
-			break
-		}
-		
-		return weekday
-	}
-
-    static func convertHourAndMinuteFromIntToString(for contact: SelectedContact) -> String {
-		var hour: String
-		var suffix: String
-		
-		let am = " AM"
-		let pm = " PM"
-
-		switch contact.notification_preference_hour {
-		case 0:
-			hour = "12:"
-			suffix = am
-			break
-		case 1:
-			hour = "1:"
-			suffix = am
-			break
-		case 2:
-			hour = "2:"
-			suffix = am
-			break
-		case 3:
-			hour = "3:"
-			suffix = am
-			break
-		case 4:
-			hour = "4:"
-			suffix = am
-			break
-		case 5:
-			hour = "5:"
-			suffix = am
-			break
-		case 6:
-			hour = "6:"
-			suffix = am
-			break
-		case 7:
-			hour = "7:"
-			suffix = am
-			break
-		case 8:
-			hour = "8:"
-			suffix = am
-			break
-		case 9:
-			hour = "9:"
-			suffix = am
-			break
-		case 10:
-			hour = "10:"
-			suffix = am
-		case 11:
-			hour = "11:"
-			suffix = am
-		case 12:
-			hour = "12:"
-			suffix = pm
-		case 13:
-			hour = "1:"
-			suffix = pm
-		case 14:
-			hour = "2:"
-			suffix = pm
-		case 15:
-			hour = "3:"
-			suffix = pm
-		case 16:
-			hour = "4:"
-			suffix = pm
-		case 17:
-			hour = "5:"
-			suffix = pm
-		case 18:
-			hour = "6:"
-			suffix = pm
-		case 19:
-			hour = "7:"
-			suffix = pm
-		case 20:
-			hour = "8:"
-			suffix = pm
-		case 21:
-			hour = "9:"
-			suffix = pm
-		case 22:
-			hour = "10:"
-			suffix = pm
-		case 23:
-			hour = "11:"
-			suffix = pm
-		default:
-			hour = "Unknown"
-			suffix = ""
-		}
-		
-		var minute = String(contact.notification_preference_minute)
-		if minute.count == 1 {
-			minute = "0" + minute
-		}
-		let time = (hour+minute+suffix)
-		
-		return time
-	}
-
-    static func convertCustomDateFromIntToString(for contact: SelectedContact, annuallyOrCustom: NotificationOption) -> String {
-		var month: String
-		var day: String
-		var year: String
-
-		switch contact.notification_preference_custom_month {
-		case 1:
-			month = "January"
-			break
-		case 2:
-			month = "February"
-			break
-		case 3:
-			month = "March"
-			break
-		case 4:
-			month = "April"
-			break
-		case 5:
-			month = "May"
-			break
-		case 6:
-			month = "June"
-			break
-		case 7:
-			month = "July"
-			break
-		case 8:
-			month = "August"
-			break
-		case 9:
-			month = "September"
-			break
-		case 10:
-			month = "October"
-			break
-		case 11:
-			month = "November"
-			break
-		case 12:
-			month = "December"
-			break
-		default:
-			month = "Unknown"
-			break
-		}
-		
-		let formatter = DateFormatter()
-		formatter.dateFormat = "dd"
-		
-		var dateComponents = DateComponents()
-		dateComponents.month = Int(contact.notification_preference_custom_month)
-		dateComponents.day = Int(contact.notification_preference_custom_day)
-		dateComponents.year = Int(contact.notification_preference_custom_year)
-		
-        guard let dateTime = Calendar.current.date(from: dateComponents) else { return "Unknown" }
-        let dateString = formatter.string(from: dateTime)
-        guard let dayDate = formatter.date(from: dateString) else { return "Unknown" }
-
-		day = formatter.string(from: dayDate)
-		year = String(contact.notification_preference_custom_year)
-		
-        if annuallyOrCustom == .annually {
-            let customDate = ("\(month) \(day)")
-            return customDate
-        } else if annuallyOrCustom == .custom {
-            let customDate = ("\(month) \(day), \(year)")
-            return customDate
-        } else {
-            let customDate = ("\(month) \(day), \(year)")
-            return customDate
-        }
-	}
+    private nonisolated static func monthDayStyle(locale: Locale, calendar: Calendar = gregorian) -> Date.FormatStyle {
+        var style = Date.FormatStyle(locale: locale, calendar: calendar).month(.wide).day()
+        style.timeZone = calendar.timeZone
+        return style
+    }
 }

@@ -1,19 +1,16 @@
 //
-//  DataController.swift
+//  PreviewSampleData.swift
 //  CatchUp-SwiftUI
 //
 //  Created by Ryan Token on 3/31/24.
 //  Copyright © 2024 Token Solutions. All rights reserved.
 //
 
-import Foundation
 import SwiftData
 
-@Observable
-class DataController {
-    var selectedContact: SelectedContact?
-
-    static let previewContainer: ModelContainer = {
+/// An in-memory store populated with sample contacts for SwiftUI previews.
+enum PreviewSampleData {
+    static let container: ModelContainer = {
         do {
             let config = ModelConfiguration(isStoredInMemoryOnly: true)
             let container = try ModelContainer(for: SelectedContact.self, configurations: config)

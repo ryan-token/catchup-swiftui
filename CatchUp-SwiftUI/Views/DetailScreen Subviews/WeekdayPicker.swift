@@ -9,15 +9,15 @@
 import SwiftUI
 
 struct WeekdayPicker: View {
+    /// The Gregorian weekday, where 1 is Sunday.
     @Binding var selection: Int
     let label: String
-    let options: [DayOption]
 
     var body: some View {
         Picker(selection: $selection) {
-            ForEach(options.indices, id: \.self) { index in
-                Text(options[index].rawValue)
-                    .tag(index + 1)
+            ForEach(1...7, id: \.self) { weekday in
+                WeekdayName(weekday: weekday)
+                    .tag(weekday)
             }
         } label: {
             Text(label)
@@ -26,5 +26,7 @@ struct WeekdayPicker: View {
 }
 
 #Preview {
-    WeekdayPicker(selection: .constant(1), label: "What day?", options: DayOption.allCases)
+    List {
+        WeekdayPicker(selection: .constant(1), label: "What day?")
+    }
 }
