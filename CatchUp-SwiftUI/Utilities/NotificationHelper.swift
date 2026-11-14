@@ -28,6 +28,10 @@ enum NotificationHelper {
 
         updateNextNotificationDateTimeFor(contact: contact)
 
+        // Checked once per contact rather than per request: each check asks the system for
+        // its settings, and a reset runs this for every contact while holding the gate.
+        guard await canScheduleNotifications() else { return }
+
         if contact.notificationOption != .never {
             await addGeneralNotification(for: contact)
         }
@@ -123,19 +127,17 @@ enum NotificationHelper {
         }
     }
 
+    /// The app's current notification permission, checked without asking.
+    static func authorizationStatus() async -> UNAuthorizationStatus {
+        await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+    }
+
     /// Whether the app may add notification requests, checked without asking.
     ///
-    /// Provisional and ephemeral permission deliver notifications too, just more quietly
-    /// or for a limited time.
+    /// Without permission, adding a request fails with an error, so callers check this before
+    /// scheduling; permission is asked for beforehand, by `requestAuthorizationIfNeeded(for:)`.
     static func canScheduleNotifications() async -> Bool {
-        switch await UNUserNotificationCenter.current().notificationSettings().authorizationStatus {
-        case .authorized, .provisional, .ephemeral:
-            true
-        case .notDetermined, .denied:
-            false
-        @unknown default:
-            false
-        }
+        await authorizationStatus().allowsScheduling
     }
 
     /// Schedules a just-added contact's reminders, such as its birthday, rather than waiting
@@ -156,10 +158,6 @@ enum NotificationHelper {
         trigger: UNNotificationTrigger,
         for contact: SelectedContact
     ) async {
-        // Every request comes through here. Without permission, adding fails with an error,
-        // so skip it; permission is asked for beforehand, by `requestAuthorizationIfNeeded(for:)`.
-        guard await canScheduleNotifications() else { return }
-
         content.sound = .default
         content.badge = 1
         // Thread and category identifiers group and filter notifications per contact.

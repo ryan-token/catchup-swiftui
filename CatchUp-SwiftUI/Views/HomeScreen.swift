@@ -141,6 +141,7 @@ struct HomeScreen: View {
             referenceDate = .now
             updateNextNotificationTime(for: selectedContacts)
             await Utils.clearAppIconNotificationBadge()
+            await rescheduleIfNotificationsWereTurnedOn()
         }
         .sheet(isPresented: $isShowingUpdatesSheet) {
             UpdatesScreen()
@@ -190,6 +191,14 @@ struct HomeScreen: View {
             await NotificationHelper.performOneTimeNuclearReset(for: selectedContacts)
             hasPerformedNuclearNotificationReset = true
         }
+    }
+
+    /// Reschedules every contact's reminders when notifications were turned on in Settings
+    /// while the app was away, since nothing could be scheduled while they were off.
+    private func rescheduleIfNotificationsWereTurnedOn() async {
+        let status = await NotificationHelper.authorizationStatus()
+        guard launchCoordinator.recordAuthorizationStatus(status) else { return }
+        await NotificationHelper.resetNotifications(for: selectedContacts, delayTime: 0)
     }
 
     private func updateNextNotificationTime(for contacts: [SelectedContact]) {

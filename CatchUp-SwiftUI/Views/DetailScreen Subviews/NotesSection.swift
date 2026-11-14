@@ -21,15 +21,13 @@ struct NotesSection: View {
 
     @FocusState private var isEditing: Bool
 
-    /// Room for a few lines before the editor grows, scaled with Dynamic Type.
-    @ScaledMetric(relativeTo: .body) private var minimumHeight = 88
-
     var body: some View {
         Section("Notes") {
-            TextEditor(text: $contact.notes)
-                .frame(minHeight: minimumHeight)
+            // A vertical text field rather than a text editor: it shows a placeholder, and
+            // keeps room for a few lines, at any Dynamic Type size, before growing with the text.
+            TextField("Add notes", text: $contact.notes, axis: .vertical)
+                .lineLimit(4...)
                 .focused($isEditing)
-                .accessibilityLabel("Notes")
         }
         // Keystrokes only change the model in memory. Save once editing ends — the keyboard
         // closes, the screen goes away, or the app leaves the foreground — so the notes are

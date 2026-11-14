@@ -171,7 +171,7 @@ final class NotificationPreferenceModel {
         // does nothing without notification permission. Marking read also moves the unread
         // indicator to the new next reminder: the user is looking at the contact, and the
         // old time may no longer match any reminder.
-        contact.markAsRead()
+        contact.markAsRead(calendar: calendar)
 
         resetTask?.cancel()
         resetTask = Task {
@@ -192,7 +192,7 @@ final class NotificationPreferenceModel {
 
             // Replace the general notification, whichever identifiers its old frequency used.
             await UNUserNotificationCenter.current().remove(NotificationID.allGeneral(contact))
-            if contact.notificationOption != .never {
+            if contact.notificationOption != .never, await NotificationHelper.canScheduleNotifications() {
                 await NotificationHelper.addGeneralNotification(for: contact)
             }
         }

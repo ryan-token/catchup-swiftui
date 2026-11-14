@@ -174,6 +174,24 @@ struct NotificationDateTests {
         #expect(NotificationHelper.isComparableUnreadTime(stored, now: now) == isComparable)
     }
 
+    /// Minutes from the stored unread time to the moment checked, and whether the indicator shows.
+    @Test(arguments: [(-1, false), (0, true), (1, true)])
+    func unreadIndicatorShowsOnceTheUnreadTimeArrives(minutesAfter: Int, isUnread: Bool) {
+        let unreadTime = TestSupport.date(year: 2026, month: 10, day: 22, hour: 9)
+        let contact = SelectedContact.sampleData
+        // Stored in the device's time zone, as the app writes it.
+        contact.unread_badge_date_time = StoredDateFormat.string(from: unreadTime)
+
+        let checked = unreadTime.addingTimeInterval(TimeInterval(minutesAfter * 60))
+        #expect(contact.isUnread(at: checked) == isUnread)
+    }
+
+    @Test func contactWithoutAnUnreadTimeIsNeverUnread() {
+        let contact = SelectedContact.sampleData
+        contact.unread_badge_date_time = ""
+        #expect(!contact.isUnread(at: .distantFuture))
+    }
+
     @Test func markingReadFromTheReminderThatJustFiredWaitsForTheNextOne() {
         let contact = SelectedContact.sampleData
         contact.notification_preference = NotificationOption.daily.rawValue
