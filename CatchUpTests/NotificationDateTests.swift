@@ -174,6 +174,25 @@ struct NotificationDateTests {
         #expect(NotificationHelper.isComparableUnreadTime(stored, now: now) == isComparable)
     }
 
+    @Test func markingReadFromTheReminderThatJustFiredWaitsForTheNextOne() {
+        let contact = SelectedContact.sampleData
+        contact.notification_preference = NotificationOption.daily.rawValue
+        contact.notification_preference_hour = 9
+        contact.notification_preference_minute = 0
+        contact.birthday = ""
+        contact.anniversary = ""
+        // Opened from this morning's reminder, before anything recalculated the next one.
+        contact.next_notification_date_time = "2026-10-22 09:00:00"
+
+        let now = TestSupport.date(year: 2026, month: 10, day: 22, hour: 10)
+        contact.markAsRead(now: now, calendar: TestSupport.calendar)
+
+        #expect(
+            contact.unread_badge_date_time == "2026-10-23 09:00:00",
+            "A past unread time would keep the indicator showing"
+        )
+    }
+
     /// The next notification as seen at 10 AM UTC on Thursday, October 22, 2026.
     private func nextNotification(for contact: SelectedContact) -> String {
         NotificationHelper.getNextNotificationDateFor(

@@ -122,8 +122,13 @@ struct HomeScreen: View {
         }
         .onChange(of: pickedContact) { _, newValue in
             guard let newValue else { return }
-            saveSelectedContact(newValue)
             pickedContact = nil
+            guard let contact = saveSelectedContact(newValue) else { return }
+            // Not tied to the view's lifetime: the permission prompt may still be up when the
+            // user navigates, and scheduling should finish either way.
+            Task {
+                await NotificationHelper.scheduleNotifications(forAdded: contact)
+            }
         }
         .onChange(of: selectedContacts.count) {
             clearSelectionIfRemoved()
@@ -193,11 +198,13 @@ struct HomeScreen: View {
         }
     }
 
-    private func saveSelectedContact(_ contact: CNContact) {
+    /// Adds the picked contact, returning it, or `nil` when it's already added.
+    private func saveSelectedContact(_ contact: CNContact) -> SelectedContact? {
         let contactName = ContactHelper.contactName(for: contact)
-        guard !selectedContacts.contains(where: { $0.name == contactName }) else { return }
+        guard !selectedContacts.contains(where: { $0.name == contactName }) else { return nil }
 
-        modelContext.insert(ContactHelper.createSelectedContact(contact: contact))
+        let selectedContact = ContactHelper.createSelectedContact(contact: contact)
+        modelContext.insert(selectedContact)
 
         // Autosave timing is unpredictable; persist immediately so a user who
         // adds a contact and backgrounds the app keeps it on next launch.
@@ -206,6 +213,7 @@ struct HomeScreen: View {
         } catch {
             assertionFailure("Failed to save after adding contacts: \(error)")
         }
+        return selectedContact
     }
 
     /// Clears the detail column when its contact is deleted, here or on another device.

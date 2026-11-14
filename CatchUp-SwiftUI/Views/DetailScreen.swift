@@ -9,6 +9,8 @@
 import SwiftUI
 
 struct DetailScreen: View {
+    @Environment(\.scenePhase) private var scenePhase
+
     let contact: SelectedContact
     /// The split view's selection, cleared when this contact is removed.
     @Binding var selection: SelectedContact?
@@ -45,9 +47,12 @@ struct DetailScreen: View {
                 }
             }
 
+            NotesSection(contact: contact)
+
             RemoveContactButton(contact: contact, selection: $selection)
         }
         .contentMargins(.top, 0, for: .scrollContent)
+        .scrollDismissesKeyboard(.interactively)
         .onScrollGeometryChange(for: CGFloat.self) { geometry in
             geometry.contentInsets.top
         } action: { _, newInset in
@@ -67,8 +72,11 @@ struct DetailScreen: View {
         .onChange(of: contact.id, initial: true) {
             preferenceModel.load(contact)
         }
-        .task {
-            Utils.clearUnreadBadge(for: contact)
+        // Showing a contact marks it read, including when the app becomes active from its
+        // notification while it's already on screen, and the selection doesn't change.
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            contact.markAsRead()
             await Utils.clearAppIconNotificationBadge()
         }
     }
@@ -80,4 +88,5 @@ struct DetailScreen: View {
     NavigationStack {
         DetailScreen(contact: .sampleData, selection: $selection)
     }
+    .modelContainer(PreviewSampleData.container)
 }

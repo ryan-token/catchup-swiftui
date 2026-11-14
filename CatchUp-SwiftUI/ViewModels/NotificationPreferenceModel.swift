@@ -168,8 +168,10 @@ final class NotificationPreferenceModel {
         guard let contact else { return }
 
         // The date doesn't depend on the reschedule, which waits for the debounce and
-        // does nothing without notification permission.
-        NotificationHelper.updateNextNotificationDateTimeFor(contact: contact)
+        // does nothing without notification permission. Marking read also moves the unread
+        // indicator to the new next reminder: the user is looking at the contact, and the
+        // old time may no longer match any reminder.
+        contact.markAsRead()
 
         resetTask?.cancel()
         resetTask = Task {
@@ -180,8 +182,8 @@ final class NotificationPreferenceModel {
     }
 
     private static func resetGeneralNotification(for contact: SelectedContact) async {
-        let authorized = await NotificationHelper.checkNotificationAuthorizationStatusAndAddRequest()
-        guard authorized else { return }
+        // In context: the user just chose when to be reminded.
+        await NotificationHelper.requestAuthorizationIfNeeded(for: [contact])
 
         // Inside the gate, so a reset or a deletion's purge can't interleave with it.
         await NotificationResetGate.shared.run {

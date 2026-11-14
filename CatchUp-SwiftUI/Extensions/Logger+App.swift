@@ -17,6 +17,9 @@ extension Logger {
     /// Reading from the Contacts store and formatting contact details.
     nonisolated static let contacts = Logger(subsystem: subsystem, category: "Contacts")
 
+    /// Saving contacts to the SwiftData store.
+    nonisolated static let persistence = Logger(subsystem: subsystem, category: "Persistence")
+
     /// In-app purchases for the tip jar.
     nonisolated static let store = Logger(subsystem: subsystem, category: "Store")
 }

@@ -33,17 +33,14 @@ struct ContactRowView: View {
                 .fill(.orange)
                 .frame(width: 15, height: 15)
                 .padding(.horizontal)
-                .opacity(shouldShowUnreadIndicator ? 1 : 0)
+                .opacity(isUnread ? 1 : 0)
                 .accessibilityLabel("Unread")
-                .accessibilityHidden(!shouldShowUnreadIndicator)
+                .accessibilityHidden(!isUnread)
         }
     }
 
-    /// Shows once the stored unread time has passed. Stored times are zero-padded,
-    /// so comparing the strings compares the dates.
-    private var shouldShowUnreadIndicator: Bool {
-        guard !contact.unread_badge_date_time.isEmpty else { return false }
-        return StoredDateFormat.string(from: referenceDate) >= contact.unread_badge_date_time
+    private var isUnread: Bool {
+        contact.isUnread(at: referenceDate)
     }
 }
 
