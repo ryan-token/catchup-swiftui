@@ -131,6 +131,23 @@ struct NotificationPreferenceModelTests {
         #expect(contact.notification_preference_custom_year == 2030)
     }
 
+    @Test func editingTheReminderMovesTheUnreadIndicatorToTheNewNextReminder() async {
+        let contact = SelectedContact.sampleData
+        contact.notification_preference = NotificationOption.weekly.rawValue
+        // The weekly reminder's time, which the edit leaves behind.
+        contact.unread_badge_date_time = "2026-10-27 09:00:00"
+        let model = makeModel(editing: contact)
+
+        model.preference = .daily
+        await model.resetTask?.value
+
+        #expect(!contact.next_notification_date_time.isEmpty)
+        #expect(
+            contact.unread_badge_date_time == contact.next_notification_date_time,
+            "A leftover time would show the indicator when no reminder fired"
+        )
+    }
+
     /// A model for the contact that records its reschedules instead of touching the notification center.
     private func makeModel(editing contact: SelectedContact) -> NotificationPreferenceModel {
         let model = NotificationPreferenceModel(calendar: TestSupport.calendar, debounce: .zero) { [rescheduled] in

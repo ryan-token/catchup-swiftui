@@ -9,6 +9,7 @@
 @testable import CatchUp
 import Foundation
 import Testing
+import UserNotifications
 
 struct SupportingTypeTests {
     @Test func notificationOptionRawValuesNeverChange() {
@@ -76,5 +77,35 @@ struct SupportingTypeTests {
         let coordinator = LaunchCoordinator()
         #expect(coordinator.beginColdLaunchSetup())
         #expect(coordinator.beginColdLaunchSetup() == false)
+    }
+
+    @Test(arguments: [
+        (UNAuthorizationStatus.authorized, true),
+        (.provisional, true),
+        (.ephemeral, true),
+        (.notDetermined, false),
+        (.denied, false)
+    ])
+    func authorizationStatusAllowsScheduling(status: UNAuthorizationStatus, allows: Bool) {
+        #expect(status.allowsScheduling == allows)
+    }
+
+    @Test func turningNotificationsOnInSettingsTriggersOneReschedule() {
+        let coordinator = LaunchCoordinator()
+        #expect(coordinator.recordAuthorizationStatus(.denied) == false, "The first check has nothing to compare")
+        #expect(coordinator.recordAuthorizationStatus(.authorized))
+        #expect(coordinator.recordAuthorizationStatus(.authorized) == false, "Already rescheduled")
+    }
+
+    @Test(arguments: [
+        (UNAuthorizationStatus.notDetermined, UNAuthorizationStatus.authorized),
+        (.authorized, .authorized),
+        (.authorized, .denied),
+        (.denied, .denied)
+    ])
+    func otherPermissionChangesDontReschedule(from previous: UNAuthorizationStatus, to current: UNAuthorizationStatus) {
+        let coordinator = LaunchCoordinator()
+        _ = coordinator.recordAuthorizationStatus(previous)
+        #expect(coordinator.recordAuthorizationStatus(current) == false)
     }
 }

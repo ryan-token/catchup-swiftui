@@ -19,10 +19,6 @@ enum Utils {
         }
     }
 
-    static func clearUnreadBadge(for contact: SelectedContact) {
-        contact.unread_badge_date_time = contact.next_notification_date_time
-    }
-
     /// The marketing version, such as "3.2.3".
     nonisolated static var currentAppVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""

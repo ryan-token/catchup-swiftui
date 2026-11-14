@@ -49,6 +49,8 @@ class SelectedContact {
     var secondary_phone: String = ""
     /// The next time any notification fires, in `StoredDateFormat`.
     var next_notification_date_time: String = ""
+    /// Free-form notes the user keeps about the contact.
+    var notes: String = ""
     /// The `StoredDateFormat` time after which the unread indicator shows.
     var unread_badge_date_time: String = ""
 
@@ -77,7 +79,8 @@ class SelectedContact {
         secondary_address: String,
         secondary_email: String,
         secondary_phone: String,
-        unread_badge_date_time: String
+        unread_badge_date_time: String,
+        notes: String = ""
     ) {
         self.address = address
         self.anniversary = anniversary
@@ -104,6 +107,7 @@ class SelectedContact {
         self.secondary_email = secondary_email
         self.secondary_phone = secondary_phone
         self.unread_badge_date_time = unread_badge_date_time
+        self.notes = notes
     }
 
     /// The reminder frequency, treating unrecognized stored values as `.never`.
@@ -123,6 +127,11 @@ class SelectedContact {
     var hasSecondaryAddress: Bool { !secondary_address.isEmpty }
     var hasBirthday: Bool { !birthday.isEmpty }
     var hasAnniversary: Bool { !anniversary.isEmpty }
+
+    /// Whether the contact has any reminder to schedule: a general one, a birthday, or an anniversary.
+    var hasNotificationsToSchedule: Bool {
+        notificationOption != .never || hasBirthday || hasAnniversary
+    }
 
     var hasContactInfo: Bool {
         hasPhone || hasSecondaryPhone || hasEmail || hasSecondaryEmail
@@ -158,7 +167,8 @@ class SelectedContact {
             secondary_address: "",
             secondary_email: "",
             secondary_phone: "",
-            unread_badge_date_time: ""
+            unread_badge_date_time: "",
+            notes: "Loves hiking. Ask how the new job is going."
         )
     }
 }

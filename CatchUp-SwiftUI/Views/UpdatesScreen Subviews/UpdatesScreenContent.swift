@@ -11,8 +11,8 @@ import SwiftUI
 /// The scrolling release notes shown after a major update.
 struct UpdatesScreenContent: View {
     private static let currentVersionNotes: [String] = [
+        "Keep notes on each contact, synced across your devices",
         "Designed for iPhone Duo, with your contacts and their details side by side on the inner display",
-        "Tapping a reminder notification now opens that contact",
         "Bug fixes & performance improvements"
     ]
 

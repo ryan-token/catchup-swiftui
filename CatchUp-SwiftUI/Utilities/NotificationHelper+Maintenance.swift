@@ -86,6 +86,8 @@ extension NotificationHelper {
     /// `@AppStorage`) to recover from notifications stranded by past builds whose
     /// removal code targeted the wrong identifiers.
     static func performOneTimeNuclearReset(for selectedContacts: [SelectedContact]) async {
+        await requestAuthorizationIfNeeded(for: selectedContacts)
+
         await NotificationResetGate.shared.run {
             let center = UNUserNotificationCenter.current()
             center.removeAllPendingNotificationRequests()
@@ -107,13 +109,16 @@ extension NotificationHelper {
     /// The loops deliberately don't stop on cancellation: abandoning the work after
     /// the purge phase would leave contacts without their scheduled reminders.
     static func resetNotifications(for selectedContacts: [SelectedContact], delayTime: Double) async {
+        // Waits outside the gate, so the delay doesn't hold up other notification changes.
+        if delayTime > 0 {
+            try? await Task.sleep(for: .seconds(delayTime))
+        }
+
+        await requestAuthorizationIfNeeded(for: selectedContacts)
+
         // Serialize concurrent resets — both the purge and the reschedule run inside
         // the gate, so two interleaved callers can't fight over the notification queue.
         await NotificationResetGate.shared.run {
-            if delayTime > 0 {
-                try? await Task.sleep(for: .seconds(delayTime))
-            }
-
             // Contacts deleted since the caller captured them have had their notifications
             // purged already, and can't be read. Checked on each pass, since a contact can
             // be deleted while an earlier one is awaited.
