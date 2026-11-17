@@ -15,7 +15,6 @@ struct AboutScreenHeader: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: 80, height: 80)
-                .clipShape(.rect(cornerRadius: 15))
                 .shadow(radius: 10)
                 .accessibilityHidden(true)
                 .padding(.top, 12)

@@ -1,18 +1,18 @@
 {
   "images" : [
     {
-      "idiom" : "universal",
-      "scale" : "1x"
+      "filename" : "CatchUp.png",
+      "idiom" : "universal"
     },
     {
-      "filename" : "CatchUp - SwiftUI2-1.png",
-      "idiom" : "universal",
-      "scale" : "2x"
-    },
-    {
-      "filename" : "CatchUp - SwiftUI2-2.png",
-      "idiom" : "universal",
-      "scale" : "3x"
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "dark"
+        }
+      ],
+      "filename" : "CatchUp-Dark.png",
+      "idiom" : "universal"
     }
   ],
   "info" : {

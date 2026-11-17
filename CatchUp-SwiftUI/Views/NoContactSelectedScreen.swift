@@ -20,7 +20,6 @@ struct NoContactSelectedScreen: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 100, height: 100)
-                    .clipShape(.rect(cornerRadius: 20))
                     .shadow(radius: 15)
                     .accessibilityHidden(true)
             }

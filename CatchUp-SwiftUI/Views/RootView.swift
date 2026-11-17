@@ -45,6 +45,9 @@ struct RootView: View {
         var descriptor = FetchDescriptor<SelectedContact>(predicate: #Predicate { $0.id == contactID })
         descriptor.fetchLimit = 1
         if let contact = try? modelContext.fetch(descriptor).first {
+            // The tap is the moment the reminder is seen, so mark it read here, before any view
+            // appears, rather than relying on when the detail screen sees the app become active.
+            contact.markAsReadAndSave()
             selectedContact = contact
         }
     }

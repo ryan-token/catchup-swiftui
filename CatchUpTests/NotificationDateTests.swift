@@ -8,6 +8,7 @@
 
 @testable import CatchUp
 import Foundation
+import SwiftData
 import Testing
 
 struct NotificationDateTests {
@@ -209,6 +210,56 @@ struct NotificationDateTests {
             contact.unread_badge_date_time == "2026-10-23 09:00:00",
             "A past unread time would keep the indicator showing"
         )
+    }
+
+    @MainActor
+    @Test func markingReadSavesRightAway() throws {
+        let container = try Self.makeContainer()
+        let context = container.mainContext
+        let contact = Self.dailyNineAMContact()
+        context.insert(contact)
+        try context.save()
+
+        let now = TestSupport.date(year: 2026, month: 10, day: 22, hour: 10)
+        contact.markAsReadAndSave(now: now, calendar: TestSupport.calendar)
+
+        #expect(contact.unread_badge_date_time == "2026-10-23 09:00:00")
+        #expect(!context.hasChanges, "An unsaved read state can be lost to a CloudKit import")
+    }
+
+    /// Deleted but not yet saved, as when the detail screen closes after the contact is removed.
+    @MainActor
+    @Test func markingADeletedContactReadLeavesItUntouched() throws {
+        let container = try Self.makeContainer()
+        let context = container.mainContext
+        let contact = Self.dailyNineAMContact()
+        contact.unread_badge_date_time = "2026-10-22 09:00:00"
+        context.insert(contact)
+        try context.save()
+        context.delete(contact)
+
+        let now = TestSupport.date(year: 2026, month: 10, day: 22, hour: 10)
+        contact.markAsReadAndSave(now: now, calendar: TestSupport.calendar)
+
+        #expect(contact.unread_badge_date_time == "2026-10-22 09:00:00")
+        #expect(context.hasChanges, "Only the pending deletion, which marking read shouldn't save")
+    }
+
+    /// A contact with only a daily 9 AM reminder, so its next reminder is predictable.
+    private static func dailyNineAMContact() -> SelectedContact {
+        let contact = SelectedContact.sampleData
+        contact.notification_preference = NotificationOption.daily.rawValue
+        contact.notification_preference_hour = 9
+        contact.notification_preference_minute = 0
+        contact.birthday = ""
+        contact.anniversary = ""
+        return contact
+    }
+
+    /// An in-memory store that doesn't sync. Held by the test, since its context needs it alive.
+    private static func makeContainer() throws -> ModelContainer {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        return try ModelContainer(for: SelectedContact.self, configurations: configuration)
     }
 
     /// The next notification as seen at 10 AM UTC on Thursday, October 22, 2026.

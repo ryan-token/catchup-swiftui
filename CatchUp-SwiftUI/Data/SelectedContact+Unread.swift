@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import OSLog
 
 extension SelectedContact {
     /// Whether the contact's unread indicator shows at the given time: once a reminder
@@ -31,6 +32,25 @@ extension SelectedContact {
         NotificationHelper.updateNextNotificationDateTimeFor(contact: self, now: now, calendar: calendar)
         if unread_badge_date_time != next_notification_date_time {
             unread_badge_date_time = next_notification_date_time
+        }
+    }
+
+    /// Marks the contact read and saves right away, rather than waiting for autosave.
+    ///
+    /// The store syncs with CloudKit, and a change still waiting for autosave can be lost to
+    /// an import that arrives first, as one can when the app opens from a notification. A
+    /// saved change also survives the app closing, and reaches the user's other devices sooner.
+    @MainActor
+    func markAsReadAndSave(now: Date = .now, calendar: Calendar = .current) {
+        // A deleted contact can't be written to, such as when its detail closes after removal.
+        guard !isRemoved else { return }
+        markAsRead(now: now, calendar: calendar)
+        guard let modelContext, modelContext.hasChanges else { return }
+        do {
+            try modelContext.save()
+        } catch {
+            Logger.persistence.error("Failed to save after marking a contact read: \(error)")
+            assertionFailure("Failed to save after marking a contact read: \(error)")
         }
     }
 }
