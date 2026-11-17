@@ -76,8 +76,13 @@ struct DetailScreen: View {
         // notification while it's already on screen, and the selection doesn't change.
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
-            contact.markAsRead()
+            contact.markAsReadAndSave()
             await Utils.clearAppIconNotificationBadge()
+        }
+        // Leaving a contact also marks it read, so the list never shows the indicator for
+        // the contact just viewed, including when a reminder fired while it was open.
+        .onDisappear {
+            contact.markAsReadAndSave()
         }
     }
 }
