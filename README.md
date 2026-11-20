@@ -1,3 +1,5 @@
+<img src=".github/app-icon.png" width="128" height="128" alt="CatchUp app icon">
+
 # CatchUp: Keep in Touch
 
 Keep in touch with your friends, family, business associates, and anyone else in your iOS Contacts list. Pick the people you want to stay close to, choose how often, and CatchUp reminds you when it's time to catch up with them again.
